@@ -250,12 +250,37 @@ func runAIReview(args []string) error {
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
 	configPath := fs.String("config", "", "optional JSON review rules config")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
+	providerPath := fs.String("provider-config", "", "optional OpenAI-compatible provider JSON config")
 	baseURL := fs.String("base-url", "https://api.openai.com/v1", "OpenAI-compatible API base URL")
 	model := fs.String("model", "gpt-4.1-mini", "review model")
 	apiKeyEnv := fs.String("api-key-env", "OPENAI_API_KEY", "environment variable that stores API key")
+	retries := fs.Int("retries", 0, "retry count for transient AI provider failures")
 	promptOnly := fs.Bool("prompt-only", true, "print review prompt instead of calling API")
 	output := fs.String("output", "", "write review output to file")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	setFlags := map[string]bool{}
+	fs.Visit(func(flag *flag.Flag) {
+		setFlags[flag.Name] = true
+	})
+	provider, err := ai.LoadProviderConfig(*providerPath)
+	if err != nil {
+		return err
+	}
+	if setFlags["base-url"] {
+		provider.BaseURL = *baseURL
+	}
+	if setFlags["model"] {
+		provider.Model = *model
+	}
+	if setFlags["api-key-env"] {
+		provider.APIKeyEnv = *apiKeyEnv
+	}
+	if setFlags["retries"] {
+		provider.Retries = *retries
+	}
+	if err := provider.Validate(); err != nil {
 		return err
 	}
 
@@ -277,9 +302,10 @@ func runAIReview(args []string) error {
 		content = ai.Prompt(req)
 	} else {
 		result, err := ai.Client{
-			BaseURL: *baseURL,
-			APIKey:  os.Getenv(*apiKeyEnv),
-			Model:   *model,
+			BaseURL: provider.BaseURL,
+			APIKey:  os.Getenv(provider.APIKeyEnv),
+			Model:   provider.Model,
+			Retries: provider.Retries,
 		}.Review(context.Background(), req)
 		if err != nil {
 			return err
@@ -697,6 +723,6 @@ Usage:
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . [--version v0.1.0] [--policy examples/release-policy.json] --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
-  oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only
+  oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)
 }

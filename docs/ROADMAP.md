@@ -28,7 +28,7 @@
 
 ## v0.3
 
-- 完善 OpenAI-compatible provider 的配置文件和重试策略。
+- 支持 OpenAI-compatible provider 配置文件和 HTTP 429/5xx 重试策略。
 - 支持使用 Codex 生成测试建议和发布说明摘要。
 - 保留确定性规则作为兜底，避免 AI 输出不可审查。
 

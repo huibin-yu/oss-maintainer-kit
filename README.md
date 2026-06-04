@@ -257,7 +257,18 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
   --project oss-maintainer-kit \
   --prompt-only=false \
   --base-url https://api.openai.com/v1 \
-  --model gpt-4.1-mini
+  --model gpt-4.1-mini \
+  --retries 2
+```
+
+也可以使用 provider 配置文件，并用命令行参数覆盖其中的字段：
+
+```bash
+OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
+  --diff examples/pr.diff \
+  --project oss-maintainer-kit \
+  --prompt-only=false \
+  --provider-config examples/ai-provider.json
 ```
 
 ## 数据格式
@@ -332,6 +343,17 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 }
 ```
 
+`examples/ai-provider.json`：
+
+```json
+{
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-4.1-mini",
+  "api_key_env": "OPENAI_API_KEY",
+  "retries": 2
+}
+```
+
 字段说明：
 
 - `min_health_score`：发布所需最低健康度，范围 `0-100`。
@@ -340,12 +362,20 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - `max_stale_issues`：允许的长期未更新 issue 数量，不能小于 `0`。
 - `required_commands`：发布前必须执行的命令，不能为空字符串。
 
+Provider 配置字段说明：
+
+- `base_url`：OpenAI-compatible API base URL。
+- `model`：用于 review 的模型名称。
+- `api_key_env`：读取 API key 的环境变量名。
+- `retries`：遇到 HTTP 429/5xx 或临时网络错误时的重试次数，不能小于 `0`。
+
 ## 适合 Codex 辅助的维护场景
 
 这个项目刻意选择了开源维护者高频、可验证的工作流：
 
 - PR review：对规则变更、输出格式、边界条件和测试覆盖进行审查。
 - AI-assisted review：把本地 diff 风险扫描结果和 PR diff 组合成可审查的 Codex prompt。
+- AI provider：通过 OpenAI-compatible provider 配置文件管理 `base_url`、`model`、`api_key_env` 和重试次数，并允许 CLI 参数覆盖。
 - Repository-specific rules：通过 JSON 配置给不同仓库定制 review 规则。
 - PR comments：生成带稳定标记的 Markdown 评论，便于后续 GitHub Bot 更新评论。
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。

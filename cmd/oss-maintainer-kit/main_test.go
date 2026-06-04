@@ -132,6 +132,67 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 	}
 }
 
+func TestRunAIReviewUsesProviderConfigAndFlagOverrides(t *testing.T) {
+	var calls int
+	var seenModel string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var req struct {
+			Model string `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		seenModel = req.Model
+		if calls == 1 {
+			http.Error(w, "temporary", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"review ok"}}]}`))
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "provider.json", `{
+		"base_url": "`+server.URL+`",
+		"model": "config-model",
+		"api_key_env": "CUSTOM_AI_KEY",
+		"retries": 1
+	}`)
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++fmt.Println("hello")
+`)
+	t.Setenv("CUSTOM_AI_KEY", "test-key")
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"ai-review",
+			"--diff", filepath.Join(root, "pr.diff"),
+			"--provider-config", filepath.Join(root, "provider.json"),
+			"--model", "flag-model",
+			"--prompt-only=false",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if calls != 2 {
+		t.Fatalf("calls=%d, want retry", calls)
+	}
+	if seenModel != "flag-model" {
+		t.Fatalf("model=%s", seenModel)
+	}
+	if !strings.Contains(output, "review ok") {
+		t.Fatalf("missing review output: %s", output)
+	}
+}
+
 func TestRunTriageTableIncludesAction(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[

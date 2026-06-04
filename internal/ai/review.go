@@ -17,6 +17,7 @@ type Client struct {
 	BaseURL string
 	APIKey  string
 	Model   string
+	Retries int
 	HTTP    *http.Client
 }
 
@@ -75,35 +76,85 @@ func (c Client) Review(ctx context.Context, req ReviewRequest) (ReviewResult, er
 		return ReviewResult{}, err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return ReviewResult{}, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-
 	httpClient := c.HTTP
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
-	resp, err := httpClient.Do(httpReq)
-	if err != nil {
-		return ReviewResult{}, err
+	var lastErr error
+	for attempt := 0; attempt <= c.Retries; attempt++ {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(body))
+		if err != nil {
+			return ReviewResult{}, err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
+
+		resp, err := httpClient.Do(httpReq)
+		if err != nil {
+			lastErr = err
+			if !shouldRetryError(err) || attempt == c.Retries {
+				return ReviewResult{}, err
+			}
+			if err := waitRetry(ctx, attempt); err != nil {
+				return ReviewResult{}, err
+			}
+			continue
+		}
+
+		result, retry, err := decodeReviewResponse(resp)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		if !retry || attempt == c.Retries {
+			return ReviewResult{}, err
+		}
+		if err := waitRetry(ctx, attempt); err != nil {
+			return ReviewResult{}, err
+		}
 	}
+	if lastErr != nil {
+		return ReviewResult{}, lastErr
+	}
+	return ReviewResult{}, fmt.Errorf("ai review failed")
+}
+
+func decodeReviewResponse(resp *http.Response) (ReviewResult, bool, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return ReviewResult{}, fmt.Errorf("ai review %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		err := fmt.Errorf("ai review %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		return ReviewResult{}, shouldRetryStatus(resp.StatusCode), err
 	}
 
 	var out chatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return ReviewResult{}, err
+		return ReviewResult{}, false, err
 	}
 	if len(out.Choices) == 0 {
-		return ReviewResult{}, fmt.Errorf("ai review returned no choices")
+		return ReviewResult{}, false, fmt.Errorf("ai review returned no choices")
 	}
-	return ReviewResult{Content: out.Choices[0].Message.Content}, nil
+	return ReviewResult{Content: out.Choices[0].Message.Content}, false, nil
+}
+
+func shouldRetryStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status >= 500
+}
+
+func shouldRetryError(err error) bool {
+	return err != nil
+}
+
+func waitRetry(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt+1) * 100 * time.Millisecond
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type chatRequest struct {
