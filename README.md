@@ -8,7 +8,7 @@
 
 - `triage`：根据标题、正文、标签和更新时间生成优先级与建议标签。
 - `release-notes`：从已合并 PR 生成发布说明草稿。
-- `release-check`：结合 issues、PRs 和仓库健康度生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
+- `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
@@ -20,7 +20,7 @@
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
-- GitHub Actions：内置 CI、CodeQL、PR diff SARIF 扫描和 Dependabot 配置。
+- GitHub Actions：内置 CI、CodeQL、PR diff SARIF 扫描、release-check 发布门禁和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
 - 内置示例数据、单元测试和 GitHub Actions CI。
 
@@ -64,7 +64,21 @@ go run ./cmd/oss-maintainer-kit release-check \
   --pulls examples/pulls.json \
   --root . \
   --project oss-maintainer-kit \
-  --version v0.1.0
+  --version v0.1.0 \
+  --policy examples/release-policy.json
+```
+
+在 CI 或发布门禁中启用严格模式，BLOCKED 会返回非 0 状态：
+
+```bash
+go run ./cmd/oss-maintainer-kit release-check \
+  --issues release-issues.json \
+  --pulls release-pulls.json \
+  --root . \
+  --project oss-maintainer-kit \
+  --version v0.1.0 \
+  --policy examples/release-policy.json \
+  --fail-on-blocked
 ```
 
 生成维护报告：
@@ -114,6 +128,8 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
   --kind issues \
   --output examples/issues.json
 ```
+
+`.github/workflows/release-check.yml` 会在 PR 和 main 分支上使用 `github-export` 导出当前仓库 issues/PRs，再以 `--fail-on-blocked` 执行发布准备检查。
 
 离线检查 PR diff：
 
@@ -229,6 +245,30 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 }
 ```
 
+`examples/release-policy.json`：
+
+```json
+{
+  "min_health_score": 100,
+  "block_security_issues": true,
+  "block_stale_issues": true,
+  "max_stale_issues": 0,
+  "required_commands": [
+    "rtk go test ./...",
+    "rtk go build ./cmd/oss-maintainer-kit",
+    "rtk go run ./cmd/oss-maintainer-kit health --root ."
+  ]
+}
+```
+
+字段说明：
+
+- `min_health_score`：发布所需最低健康度，范围 `0-100`。
+- `block_security_issues`：是否用安全相关 open issue 阻塞发布。
+- `block_stale_issues`：是否用长期未更新 issue 阻塞发布。
+- `max_stale_issues`：允许的长期未更新 issue 数量，不能小于 `0`。
+- `required_commands`：发布前必须执行的命令，不能为空字符串。
+
 ## 适合 Codex 辅助的维护场景
 
 这个项目刻意选择了开源维护者高频、可验证的工作流：
@@ -240,12 +280,13 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
-- release workflow：根据合并 PR 自动生成发布说明草稿，并在发布前检查安全 issue、仓库健康度、测试和构建命令。
+- release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
 - security workflow：识别安全关键词、凭证泄露和高风险问题。
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
 - application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
+- release gate automation：通过 `.github/workflows/release-check.yml` 在 push 和 PR 上运行发布准备检查。
 
 ## 开发方式
 

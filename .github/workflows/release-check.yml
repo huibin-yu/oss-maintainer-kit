@@ -1,0 +1,43 @@
+name: release-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  release-check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Export repository issues
+        run: |
+          go run ./cmd/oss-maintainer-kit github-export \
+            --repo "${{ github.repository }}" \
+            --kind issues \
+            --output release-issues.json
+      - name: Export repository pulls
+        run: |
+          go run ./cmd/oss-maintainer-kit github-export \
+            --repo "${{ github.repository }}" \
+            --kind pulls \
+            --output release-pulls.json
+      - name: Run release readiness check
+        run: |
+          go run ./cmd/oss-maintainer-kit release-check \
+            --issues release-issues.json \
+            --pulls release-pulls.json \
+            --root . \
+            --version v0.1.0 \
+            --policy examples/release-policy.json \
+            --fail-on-blocked

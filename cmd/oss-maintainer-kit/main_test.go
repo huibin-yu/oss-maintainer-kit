@@ -61,11 +61,17 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
-		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":[],"created_at":"2026-04-01T00:00:00Z","updated_at":"2026-04-01T00:00:00Z"}
 	]`)
 	writeTestFile(t, root, "pulls.json", `[
 		{"number":2,"title":"feat: add release check","body":"","state":"closed","author":"bob","labels":[],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-02T00:00:00Z"}
 	]`)
+	writeTestFile(t, root, "policy.json", `{
+		"min_health_score": 90,
+		"block_security_issues": true,
+		"block_stale_issues": true,
+		"max_stale_issues": 0
+	}`)
 
 	output := captureStdout(t, func() {
 		err := run([]string{
@@ -75,6 +81,7 @@ func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 			"--root", root,
 			"--project", "demo",
 			"--version", "v1.0.0",
+			"--policy", filepath.Join(root, "policy.json"),
 			"--format", "json",
 		})
 		if err != nil {
@@ -94,6 +101,64 @@ func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 	}
 	if len(result.Blockers) == 0 {
 		t.Fatalf("missing blockers: %s", output)
+	}
+	if !strings.Contains(strings.Join(result.Blockers, "\n"), "长期未更新 issue 超过阈值") {
+		t.Fatalf("missing policy stale blocker: %#v", result.Blockers)
+	}
+}
+
+func TestRunReleaseCheckRejectsInvalidPolicy(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[]`)
+	writeTestFile(t, root, "pulls.json", `[]`)
+	writeTestFile(t, root, "policy.json", `{"min_health_score": 120}`)
+
+	err := run([]string{
+		"release-check",
+		"--issues", filepath.Join(root, "issues.json"),
+		"--pulls", filepath.Join(root, "pulls.json"),
+		"--root", root,
+		"--policy", filepath.Join(root, "policy.json"),
+	})
+	if err == nil {
+		t.Fatal("expected invalid policy error")
+	}
+	if !strings.Contains(err.Error(), "invalid release policy") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunReleaseCheckFailOnBlockedReturnsError(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pulls.json", `[]`)
+	writeTestFile(t, root, "policy.json", `{
+		"min_health_score": 0,
+		"block_security_issues": true,
+		"block_stale_issues": false
+	}`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"release-check",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--pulls", filepath.Join(root, "pulls.json"),
+			"--root", root,
+			"--policy", filepath.Join(root, "policy.json"),
+			"--fail-on-blocked",
+		})
+		if err == nil {
+			t.Fatal("expected blocked release error")
+		}
+		if !strings.Contains(err.Error(), "release blocked by policy") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "发布状态：**BLOCKED**") {
+		t.Fatalf("missing blocked report: %s", output)
 	}
 }
 

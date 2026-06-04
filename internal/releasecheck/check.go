@@ -19,30 +19,39 @@ type Input struct {
 }
 
 type Result struct {
-	Project        string
-	Version        string
-	Ready          bool
-	Summary        model.MaintainerReport
-	Health         health.Summary
-	Blockers       []string
-	Warnings       []string
-	ReleaseCommand string
+	Project  string
+	Version  string
+	Ready    bool
+	Summary  model.MaintainerReport
+	Health   health.Summary
+	Policy   Policy
+	Blockers []string
+	Warnings []string
+	Commands []string
 }
 
 func Build(input Input) Result {
+	return BuildWithPolicy(input, DefaultPolicy())
+}
+
+func BuildWithPolicy(input Input, policy Policy) Result {
 	summary := report.Maintainer(input.Issues, input.Pulls, triage.RuleSet{})
 	result := Result{
-		Project:        input.Project,
-		Version:        input.Version,
-		Summary:        summary,
-		Health:         input.Health,
-		ReleaseCommand: fmt.Sprintf("release-notes --input examples/pulls.json --version %s", input.Version),
+		Project:  input.Project,
+		Version:  input.Version,
+		Summary:  summary,
+		Health:   input.Health,
+		Policy:   policy,
+		Commands: commands(policy, input.Version),
 	}
-	if summary.SecurityIssues > 0 {
+	if policy.BlockSecurityIssues && summary.SecurityIssues > 0 {
 		result.Blockers = append(result.Blockers, fmt.Sprintf("安全相关 issue 未处理：%d 个", summary.SecurityIssues))
 	}
-	if input.Health.Score < 100 {
-		result.Blockers = append(result.Blockers, fmt.Sprintf("健康度未达到 100/100：当前 %d/100", input.Health.Score))
+	if input.Health.Score < policy.MinHealthScore {
+		result.Blockers = append(result.Blockers, fmt.Sprintf("健康度未达到 %d/100：当前 %d/100", policy.MinHealthScore, input.Health.Score))
+	}
+	if policy.BlockStaleIssues && summary.StaleIssues > policy.MaxStaleIssues {
+		result.Blockers = append(result.Blockers, fmt.Sprintf("长期未更新 issue 超过阈值：当前 %d 个，允许 %d 个", summary.StaleIssues, policy.MaxStaleIssues))
 	}
 	if summary.StaleIssues > 0 {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("存在长期未更新 issue：%d 个", summary.StaleIssues))
@@ -71,6 +80,14 @@ func Markdown(result Result) string {
 	fmt.Fprintf(&b, "- 已合并 PR：%d\n", result.Summary.MergedPulls)
 	fmt.Fprintf(&b, "- 仓库健康度：%d/100\n", result.Health.Score)
 
+	fmt.Fprintf(&b, "\n## 发布策略\n\n")
+	fmt.Fprintf(&b, "- 最低健康度：%d/100\n", result.Policy.MinHealthScore)
+	fmt.Fprintf(&b, "- 安全 issue 阻塞发布：%t\n", result.Policy.BlockSecurityIssues)
+	fmt.Fprintf(&b, "- stale issue 阻塞发布：%t\n", result.Policy.BlockStaleIssues)
+	if result.Policy.BlockStaleIssues {
+		fmt.Fprintf(&b, "- stale issue 允许数量：%d\n", result.Policy.MaxStaleIssues)
+	}
+
 	fmt.Fprintf(&b, "\n## 阻塞项\n\n")
 	if len(result.Blockers) == 0 {
 		fmt.Fprintf(&b, "暂无阻塞项。\n")
@@ -96,9 +113,15 @@ func Markdown(result Result) string {
 
 	fmt.Fprintf(&b, "\n## 发布前命令\n\n")
 	fmt.Fprintf(&b, "```bash\n")
-	fmt.Fprintf(&b, "rtk go test ./...\n")
-	fmt.Fprintf(&b, "rtk go build ./cmd/oss-maintainer-kit\n")
-	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit %s\n", result.ReleaseCommand)
+	for _, command := range result.Commands {
+		fmt.Fprintf(&b, "%s\n", command)
+	}
 	fmt.Fprintf(&b, "```\n")
 	return b.String()
+}
+
+func commands(policy Policy, version string) []string {
+	values := append([]string{}, policy.RequiredCommands...)
+	values = append(values, fmt.Sprintf("rtk go run ./cmd/oss-maintainer-kit release-notes --input examples/pulls.json --version %s", version))
+	return values
 }

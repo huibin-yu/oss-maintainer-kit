@@ -1,0 +1,11 @@
+{
+  "min_health_score": 100,
+  "block_security_issues": true,
+  "block_stale_issues": true,
+  "max_stale_issues": 0,
+  "required_commands": [
+    "rtk go test ./...",
+    "rtk go build ./cmd/oss-maintainer-kit",
+    "rtk go run ./cmd/oss-maintainer-kit health --root ."
+  ]
+}

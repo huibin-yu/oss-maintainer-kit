@@ -119,8 +119,10 @@ func runReleaseCheck(args []string) error {
 	root := fs.String("root", ".", "repository root for health checks")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
 	version := fs.String("version", "v0.1.0", "release version")
+	policyPath := fs.String("policy", "", "optional release policy JSON file")
 	format := fs.String("format", "markdown", "output format: markdown or json")
 	output := fs.String("output", "", "write release check report to file")
+	failOnBlocked := fs.Bool("fail-on-blocked", false, "exit with non-zero status when release readiness is blocked")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -133,13 +135,17 @@ func runReleaseCheck(args []string) error {
 	if err != nil {
 		return err
 	}
-	result := releasecheck.Build(releasecheck.Input{
+	policy, err := releasecheck.LoadPolicy(*policyPath)
+	if err != nil {
+		return err
+	}
+	result := releasecheck.BuildWithPolicy(releasecheck.Input{
 		Project: *project,
 		Version: *version,
 		Issues:  issues,
 		Pulls:   pulls,
 		Health:  health.Repository(*root),
-	})
+	}, policy)
 	var content []byte
 	if *format == "json" {
 		content, err = json.MarshalIndent(result, "", "  ")
@@ -152,9 +158,13 @@ func runReleaseCheck(args []string) error {
 	}
 	if *output == "" {
 		fmt.Print(string(content))
-		return nil
+	} else if err := os.WriteFile(*output, content, 0644); err != nil {
+		return err
 	}
-	return os.WriteFile(*output, content, 0644)
+	if *failOnBlocked && !result.Ready {
+		return fmt.Errorf("release blocked by policy: %d blocker(s)", len(result.Blockers))
+	}
+	return nil
 }
 
 func runReport(args []string) error {
@@ -462,7 +472,7 @@ func usage() {
 Usage:
   oss-maintainer-kit triage --input examples/issues.json [--format table|json]
   oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
-  oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0
+  oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
