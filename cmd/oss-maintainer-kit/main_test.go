@@ -97,6 +97,41 @@ func TestRunGitHubExportUsesPaginationFilters(t *testing.T) {
 	}
 }
 
+func TestRunGitHubExportUsesGraphQL(t *testing.T) {
+	var path string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data":{"repository":{"issues":{
+				"nodes":[{"number":1,"title":"bug","body":"","state":"OPEN","author":{"login":"alice"},"labels":{"nodes":[]},"createdAt":"2026-06-01T00:00:00Z","updatedAt":"2026-06-01T00:00:00Z","closedAt":null}],
+				"pageInfo":{"hasNextPage":false,"endCursor":""}
+			}}}
+		}`))
+	}))
+	defer server.Close()
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-export",
+			"--repo", "acme/demo",
+			"--kind", "issues",
+			"--api", "graphql",
+			"--graphql-url", server.URL + "/graphql",
+			"--limit", "1",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	if path != "/graphql" {
+		t.Fatalf("path = %s", path)
+	}
+	if !strings.Contains(output, `"author": "alice"`) {
+		t.Fatalf("missing graphql issue: %s", output)
+	}
+}
+
 func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[

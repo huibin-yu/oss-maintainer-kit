@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -129,5 +130,120 @@ func TestPullRequestsWithOptionsFiltersSinceClientSide(t *testing.T) {
 	}
 	if len(pulls) != 1 || pulls[0].Number != 1 {
 		t.Fatalf("unexpected pulls: %#v", pulls)
+	}
+}
+
+func TestIssuesGraphQLPaginatesAndMapsNodes(t *testing.T) {
+	var calls int
+	var states []string
+	var cursors []any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/graphql" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var request graphqlRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if request.Variables["owner"] != "acme" || request.Variables["name"] != "demo" {
+			t.Fatalf("variables = %#v", request.Variables)
+		}
+		rawStates, ok := request.Variables["states"].([]any)
+		if !ok {
+			t.Fatalf("states type = %T", request.Variables["states"])
+		}
+		states = append(states, rawStates[0].(string))
+		cursors = append(cursors, request.Variables["after"])
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		switch calls {
+		case 1:
+			_, _ = w.Write([]byte(`{
+				"data":{"repository":{"issues":{
+					"nodes":[{"number":1,"title":"security bug","body":"token","state":"OPEN","author":{"login":"alice"},"labels":{"nodes":[{"name":"security"}]},"createdAt":"2026-06-01T00:00:00Z","updatedAt":"2026-06-03T00:00:00Z","closedAt":null}],
+					"pageInfo":{"hasNextPage":true,"endCursor":"cursor-1"}
+				}}}
+			}`))
+		default:
+			_, _ = w.Write([]byte(`{
+				"data":{"repository":{"issues":{
+					"nodes":[{"number":2,"title":"old bug","body":"","state":"OPEN","author":{"login":"bob"},"labels":{"nodes":[]},"createdAt":"2026-05-01T00:00:00Z","updatedAt":"2026-05-01T00:00:00Z","closedAt":null}],
+					"pageInfo":{"hasNextPage":false,"endCursor":""}
+				}}}
+			}`))
+		}
+	}))
+	defer server.Close()
+
+	since := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	issues, err := Client{BaseURL: server.URL}.IssuesGraphQL(context.Background(), "acme/demo", ExportOptions{
+		Limit:   2,
+		State:   "open",
+		Since:   &since,
+		PerPage: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 || issues[0].Number != 1 || issues[0].State != "open" || issues[0].Labels[0] != "security" {
+		t.Fatalf("unexpected issues: %#v", issues)
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+	if states[0] != "OPEN" || cursors[0] != nil || cursors[1] != "cursor-1" {
+		t.Fatalf("states=%#v cursors=%#v", states, cursors)
+	}
+}
+
+func TestPullRequestsGraphQLMapsMergedState(t *testing.T) {
+	var states []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request graphqlRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		rawStates, ok := request.Variables["states"].([]any)
+		if !ok {
+			t.Fatalf("states type = %T", request.Variables["states"])
+		}
+		for _, value := range rawStates {
+			states = append(states, value.(string))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data":{"repository":{"pullRequests":{
+				"nodes":[{"number":3,"title":"fix","body":"","state":"MERGED","author":{"login":"carol"},"labels":{"nodes":[{"name":"bug"}]},"createdAt":"2026-06-01T00:00:00Z","updatedAt":"2026-06-02T00:00:00Z","mergedAt":"2026-06-02T00:00:00Z"}],
+				"pageInfo":{"hasNextPage":false,"endCursor":""}
+			}}}
+		}`))
+	}))
+	defer server.Close()
+
+	pulls, err := Client{BaseURL: server.URL}.PullRequestsGraphQL(context.Background(), "acme/demo", ExportOptions{
+		Limit: 10,
+		State: "closed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pulls) != 1 || !pulls[0].Merged || pulls[0].Author != "carol" {
+		t.Fatalf("unexpected pulls: %#v", pulls)
+	}
+	if len(states) != 2 || states[0] != "CLOSED" || states[1] != "MERGED" {
+		t.Fatalf("states = %#v", states)
+	}
+}
+
+func TestGraphQLErrorsReturnMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errors":[{"message":"bad query"}]}`))
+	}))
+	defer server.Close()
+
+	_, err := Client{BaseURL: server.URL}.IssuesGraphQL(context.Background(), "acme/demo", ExportOptions{})
+	if err == nil {
+		t.Fatal("expected graphql error")
 	}
 }

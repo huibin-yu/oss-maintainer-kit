@@ -608,12 +608,14 @@ func runGitHubExport(args []string) error {
 	fs := flag.NewFlagSet("github-export", flag.ContinueOnError)
 	repo := fs.String("repo", "", "GitHub repository in owner/name format")
 	kind := fs.String("kind", "issues", "export kind: issues or pulls")
+	api := fs.String("api", "rest", "GitHub API type: rest or graphql")
 	limit := fs.Int("limit", 100, "max items to export")
 	perPage := fs.Int("per-page", 100, "GitHub API page size, capped at 100")
 	state := fs.String("state", "all", "GitHub state filter: open, closed, or all")
 	since := fs.String("since", "", "only export items updated at or after RFC3339 time")
 	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
 	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	graphqlURL := fs.String("graphql-url", "", "GitHub GraphQL API URL, defaults to base-url + /graphql")
 	output := fs.String("output", "", "write JSON output to file")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -637,13 +639,30 @@ func runGitHubExport(args []string) error {
 	}
 	var data any
 	var err error
-	switch *kind {
-	case "issues":
-		data, err = client.IssuesWithOptions(context.Background(), *repo, options)
-	case "pulls":
-		data, err = client.PullRequestsWithOptions(context.Background(), *repo, options)
+	switch *api {
+	case "rest":
+		switch *kind {
+		case "issues":
+			data, err = client.IssuesWithOptions(context.Background(), *repo, options)
+		case "pulls":
+			data, err = client.PullRequestsWithOptions(context.Background(), *repo, options)
+		default:
+			return fmt.Errorf("unknown kind %q", *kind)
+		}
+	case "graphql":
+		if *graphqlURL != "" {
+			client.BaseURL = strings.TrimSuffix(*graphqlURL, "/graphql")
+		}
+		switch *kind {
+		case "issues":
+			data, err = client.IssuesGraphQL(context.Background(), *repo, options)
+		case "pulls":
+			data, err = client.PullRequestsGraphQL(context.Background(), *repo, options)
+		default:
+			return fmt.Errorf("unknown kind %q", *kind)
+		}
 	default:
-		return fmt.Errorf("unknown kind %q", *kind)
+		return fmt.Errorf("unknown api %q", *api)
 	}
 	if err != nil {
 		return err
@@ -676,7 +695,7 @@ Usage:
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . [--version v0.1.0] [--policy examples/release-policy.json] --output codex-oss-application.md
-  oss-maintainer-kit github-export --repo owner/name --kind issues [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
+  oss-maintainer-kit github-export --repo owner/name --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)

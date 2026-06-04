@@ -6,7 +6,7 @@
 
 `oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
 
-当前版本还支持 GitHub REST API 分页数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、安全专项报告与 GitHub Actions 安全门禁、SPDX SBOM 生成、可配置发布准备检查、release-check GitHub Actions 门禁、tag 发布产物与 provenance、开源仓库健康度检查、健康度趋势报告、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
+当前版本还支持 GitHub REST/GraphQL API 分页数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、安全专项报告与 GitHub Actions 安全门禁、SPDX SBOM 生成、可配置发布准备检查、release-check GitHub Actions 门禁、tag 发布产物与 provenance、开源仓库健康度检查、健康度趋势报告、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
 新增的 `application-pack` 命令会把维护报告、仓库健康度、release/security readiness、Codex 使用计划、API credits 用途和可执行验证命令聚合成一份申请证据包，便于在公开仓库中展示项目与 Codex for OSS 试用目标的匹配度。
 
@@ -17,7 +17,7 @@
 - 对 PR diff 做确定性风险扫描，并把结果交给 Codex 复核。
 - 在发布前按仓库策略检查安全 issue、stale issue、仓库健康度、风险提示和发布命令，减少遗漏。
 - 在 GitHub Actions 中导出当前仓库 issues/PRs 后运行 release-check，并在 BLOCKED 时让 workflow 失败，把发布门禁纳入 PR 和 main 分支自动化。
-- 支持按 state、更新时间窗口和 limit 分页导出真实 GitHub issues/PRs，便于对活跃维护窗口做可复验分析。
+- 支持通过 REST 或 GraphQL 按 state、更新时间窗口和 limit 分页导出真实 GitHub issues/PRs，便于对活跃维护窗口做可复验分析。
 - 支持仓库自定义规则，让不同项目按自己的风险模型调整审查策略。
 - 生成稳定 Markdown PR 评论，便于后续接入 GitHub Bot 自动更新。
 - 通过稳定 marker 创建或更新 GitHub PR 评论，避免 Bot 重复刷评论。
@@ -51,7 +51,7 @@ Owner / Maintainer
 ### Project description
 
 ```text
-oss-maintainer-kit is a Go CLI that helps open-source maintainers export paginated GitHub issues and pull requests, triage issues, scan pull request diffs with repository-specific rules, emit SARIF for GitHub Code Scanning, generate security reports and SPDX SBOMs, run security and release gates in GitHub Actions, build release artifacts with provenance attestations, run Go vulnerability checks and OpenSSF Scorecard, generate PR comments and Codex-ready review prompts, produce release notes, check repository health, track health trends, and build maintainer workflow plans.
+oss-maintainer-kit is a Go CLI that helps open-source maintainers export paginated GitHub issues and pull requests through REST or GraphQL, triage issues, scan pull request diffs with repository-specific rules, emit SARIF for GitHub Code Scanning, generate security reports and SPDX SBOMs, run security and release gates in GitHub Actions, build release artifacts with provenance attestations, run Go vulnerability checks and OpenSSF Scorecard, generate PR comments and Codex-ready review prompts, produce release notes, check repository health, track health trends, and build maintainer workflow plans.
 ```
 
 ### How you plan to use Codex
@@ -73,7 +73,8 @@ go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config exa
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format comment
 GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
-GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export --repo owner/name --kind issues --state open --since 2026-06-01T00:00:00Z --limit 200
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export --repo owner/name --kind issues --api rest --state open --since 2026-06-01T00:00:00Z --limit 200
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export --repo owner/name --kind pulls --api graphql --state closed --limit 100
 go run ./cmd/oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 --policy examples/release-policy.json
 go run ./cmd/oss-maintainer-kit release-check --issues release-issues.json --pulls release-pulls.json --root . --version v0.1.0 --policy examples/release-policy.json --fail-on-blocked
 go run ./cmd/oss-maintainer-kit security-report --issues examples/issues.json --diff examples/pr.diff --root . --project oss-maintainer-kit --fail-on-risk

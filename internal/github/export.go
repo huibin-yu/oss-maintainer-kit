@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
@@ -52,6 +53,28 @@ func (c Client) IssuesWithOptions(ctx context.Context, repo string, options Expo
 	return issues, nil
 }
 
+func (c Client) IssuesGraphQL(ctx context.Context, repo string, options ExportOptions) ([]model.Issue, error) {
+	var raw []graphqlIssueNode
+	if err := c.fetchGraphQL(ctx, repo, "issues", options, &raw); err != nil {
+		return nil, err
+	}
+	issues := make([]model.Issue, 0, len(raw))
+	for _, item := range raw {
+		issues = append(issues, model.Issue{
+			Number:    item.Number,
+			Title:     item.Title,
+			Body:      item.Body,
+			State:     strings.ToLower(item.State),
+			Author:    item.Author.Login,
+			Labels:    graphqlLabels(item.Labels.Nodes),
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+			ClosedAt:  item.ClosedAt,
+		})
+	}
+	return issues, nil
+}
+
 func (c Client) PullRequests(ctx context.Context, repo string, limit int) ([]model.PullRequest, error) {
 	return c.PullRequestsWithOptions(ctx, repo, ExportOptions{Limit: limit})
 }
@@ -70,6 +93,29 @@ func (c Client) PullRequestsWithOptions(ctx context.Context, repo string, option
 			State:     item.State,
 			Author:    item.User.Login,
 			Labels:    labels(item.Labels),
+			Merged:    item.MergedAt != nil,
+			MergedAt:  item.MergedAt,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+		})
+	}
+	return pulls, nil
+}
+
+func (c Client) PullRequestsGraphQL(ctx context.Context, repo string, options ExportOptions) ([]model.PullRequest, error) {
+	var raw []graphqlPullNode
+	if err := c.fetchGraphQL(ctx, repo, "pulls", options, &raw); err != nil {
+		return nil, err
+	}
+	pulls := make([]model.PullRequest, 0, len(raw))
+	for _, item := range raw {
+		pulls = append(pulls, model.PullRequest{
+			Number:    item.Number,
+			Title:     item.Title,
+			Body:      item.Body,
+			State:     strings.ToLower(item.State),
+			Author:    item.Author.Login,
+			Labels:    graphqlLabels(item.Labels.Nodes),
 			Merged:    item.MergedAt != nil,
 			MergedAt:  item.MergedAt,
 			CreatedAt: item.CreatedAt,
@@ -149,6 +195,109 @@ func (c Client) fetchAll(ctx context.Context, repo, resource string, options Exp
 	return nil
 }
 
+func (c Client) fetchGraphQL(ctx context.Context, repo, resource string, options ExportOptions, dst any) error {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return err
+	}
+	options = options.withDefaults()
+	switch out := dst.(type) {
+	case *[]graphqlIssueNode:
+		var all []graphqlIssueNode
+		cursor := ""
+		for len(all) < options.Limit {
+			var response graphqlIssuesResponse
+			if err := c.requestJSON(ctx, http.MethodPost, "/graphql", nil, graphqlRequest{
+				Query: graphqlIssuesQuery,
+				Variables: map[string]any{
+					"owner":  owner,
+					"name":   name,
+					"first":  min(options.PerPage, options.Limit-len(all)),
+					"after":  nullableCursor(cursor),
+					"states": graphqlIssueStates(options.State),
+				},
+			}, &response); err != nil {
+				return err
+			}
+			if err := response.error(); err != nil {
+				return err
+			}
+			olderThanSince := 0
+			for _, item := range response.Data.Repository.Issues.Nodes {
+				if matchesSince(item.UpdatedAt, options.Since) {
+					all = append(all, item)
+				} else {
+					olderThanSince++
+				}
+				if len(all) >= options.Limit {
+					break
+				}
+			}
+			pageInfo := response.Data.Repository.Issues.PageInfo
+			if !pageInfo.HasNextPage || pageInfo.EndCursor == "" {
+				break
+			}
+			if options.Since != nil && olderThanSince == len(response.Data.Repository.Issues.Nodes) {
+				break
+			}
+			cursor = pageInfo.EndCursor
+		}
+		*out = all
+	case *[]graphqlPullNode:
+		var all []graphqlPullNode
+		cursor := ""
+		for len(all) < options.Limit {
+			var response graphqlPullsResponse
+			if err := c.requestJSON(ctx, http.MethodPost, "/graphql", nil, graphqlRequest{
+				Query: graphqlPullsQuery,
+				Variables: map[string]any{
+					"owner":  owner,
+					"name":   name,
+					"first":  min(options.PerPage, options.Limit-len(all)),
+					"after":  nullableCursor(cursor),
+					"states": graphqlPullStates(options.State),
+				},
+			}, &response); err != nil {
+				return err
+			}
+			if err := response.error(); err != nil {
+				return err
+			}
+			olderThanSince := 0
+			for _, item := range response.Data.Repository.PullRequests.Nodes {
+				if matchesSince(item.UpdatedAt, options.Since) {
+					all = append(all, item)
+				} else {
+					olderThanSince++
+				}
+				if len(all) >= options.Limit {
+					break
+				}
+			}
+			pageInfo := response.Data.Repository.PullRequests.PageInfo
+			if !pageInfo.HasNextPage || pageInfo.EndCursor == "" {
+				break
+			}
+			if options.Since != nil && olderThanSince == len(response.Data.Repository.PullRequests.Nodes) {
+				break
+			}
+			cursor = pageInfo.EndCursor
+		}
+		*out = all
+	default:
+		return fmt.Errorf("unsupported graphql export destination %T", dst)
+	}
+	return nil
+}
+
+func splitRepo(repo string) (string, string, error) {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return "", "", fmt.Errorf("repo is required, expected owner/name")
+	}
+	return parts[0], parts[1], nil
+}
+
 func (o ExportOptions) withDefaults() ExportOptions {
 	if o.Limit <= 0 {
 		o.Limit = 100
@@ -193,6 +342,50 @@ func labels(values []labelResponse) []string {
 	return out
 }
 
+func graphqlLabels(values []graphqlLabelNode) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, value.Name)
+	}
+	return out
+}
+
+func graphqlIssueStates(state string) []string {
+	switch strings.ToLower(state) {
+	case "open":
+		return []string{"OPEN"}
+	case "closed":
+		return []string{"CLOSED"}
+	default:
+		return []string{"OPEN", "CLOSED"}
+	}
+}
+
+func graphqlPullStates(state string) []string {
+	switch strings.ToLower(state) {
+	case "open":
+		return []string{"OPEN"}
+	case "closed":
+		return []string{"CLOSED", "MERGED"}
+	default:
+		return []string{"OPEN", "CLOSED", "MERGED"}
+	}
+}
+
+func nullableCursor(cursor string) any {
+	if cursor == "" {
+		return nil
+	}
+	return cursor
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 type issueResponse struct {
 	Number      int             `json:"number"`
 	Title       string          `json:"title"`
@@ -227,3 +420,136 @@ type user struct {
 type labelResponse struct {
 	Name string `json:"name"`
 }
+
+type graphqlRequest struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables"`
+}
+
+type graphqlError struct {
+	Message string `json:"message"`
+}
+
+type graphqlPageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+type graphqlAuthor struct {
+	Login string `json:"login"`
+}
+
+type graphqlLabelNode struct {
+	Name string `json:"name"`
+}
+
+type graphqlLabelsConnection struct {
+	Nodes []graphqlLabelNode `json:"nodes"`
+}
+
+type graphqlIssueNode struct {
+	Number    int                     `json:"number"`
+	Title     string                  `json:"title"`
+	Body      string                  `json:"body"`
+	State     string                  `json:"state"`
+	Author    graphqlAuthor           `json:"author"`
+	Labels    graphqlLabelsConnection `json:"labels"`
+	CreatedAt time.Time               `json:"createdAt"`
+	UpdatedAt time.Time               `json:"updatedAt"`
+	ClosedAt  *time.Time              `json:"closedAt"`
+}
+
+type graphqlPullNode struct {
+	Number    int                     `json:"number"`
+	Title     string                  `json:"title"`
+	Body      string                  `json:"body"`
+	State     string                  `json:"state"`
+	Author    graphqlAuthor           `json:"author"`
+	Labels    graphqlLabelsConnection `json:"labels"`
+	CreatedAt time.Time               `json:"createdAt"`
+	UpdatedAt time.Time               `json:"updatedAt"`
+	MergedAt  *time.Time              `json:"mergedAt"`
+}
+
+type graphqlIssuesResponse struct {
+	Data struct {
+		Repository struct {
+			Issues struct {
+				Nodes    []graphqlIssueNode `json:"nodes"`
+				PageInfo graphqlPageInfo    `json:"pageInfo"`
+			} `json:"issues"`
+		} `json:"repository"`
+	} `json:"data"`
+	Errors []graphqlError `json:"errors"`
+}
+
+func (r graphqlIssuesResponse) error() error {
+	return graphqlErrors(r.Errors)
+}
+
+type graphqlPullsResponse struct {
+	Data struct {
+		Repository struct {
+			PullRequests struct {
+				Nodes    []graphqlPullNode `json:"nodes"`
+				PageInfo graphqlPageInfo   `json:"pageInfo"`
+			} `json:"pullRequests"`
+		} `json:"repository"`
+	} `json:"data"`
+	Errors []graphqlError `json:"errors"`
+}
+
+func (r graphqlPullsResponse) error() error {
+	return graphqlErrors(r.Errors)
+}
+
+func graphqlErrors(errors []graphqlError) error {
+	if len(errors) == 0 {
+		return nil
+	}
+	messages := make([]string, 0, len(errors))
+	for _, item := range errors {
+		messages = append(messages, item.Message)
+	}
+	return fmt.Errorf("github graphql: %s", strings.Join(messages, "; "))
+}
+
+const graphqlIssuesQuery = `
+query ExportIssues($owner: String!, $name: String!, $first: Int!, $after: String, $states: [IssueState!]) {
+  repository(owner: $owner, name: $name) {
+    issues(first: $first, after: $after, states: $states, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        body
+        state
+        author { login }
+        labels(first: 20) { nodes { name } }
+        createdAt
+        updatedAt
+        closedAt
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`
+
+const graphqlPullsQuery = `
+query ExportPullRequests($owner: String!, $name: String!, $first: Int!, $after: String, $states: [PullRequestState!]) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(first: $first, after: $after, states: $states, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes {
+        number
+        title
+        body
+        state
+        author { login }
+        labels(first: 20) { nodes { name } }
+        createdAt
+        updatedAt
+        mergedAt
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`
