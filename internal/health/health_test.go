@@ -3,6 +3,7 @@ package health
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -51,6 +52,9 @@ func TestRepositoryReportsMissingFiles(t *testing.T) {
 	if len(summary.Checks) == 0 {
 		t.Fatal("expected checks")
 	}
+	if summary.Checks[0].Recommendation == "" {
+		t.Fatalf("missing recommendation: %#v", summary.Checks[0])
+	}
 }
 
 func TestRepositoryReportsContentQualityFailures(t *testing.T) {
@@ -88,6 +92,28 @@ func TestRepositoryReportsContentQualityFailures(t *testing.T) {
 		}
 		if check.Passed {
 			t.Fatalf("%s passed unexpectedly: %#v", name, check)
+		}
+		if check.Recommendation == "" {
+			t.Fatalf("%s missing recommendation: %#v", name, check)
+		}
+	}
+}
+
+func TestMarkdownIncludesFailedCheckRecommendations(t *testing.T) {
+	doc := Markdown(Summary{
+		Score: 50,
+		Checks: []Check{
+			{Name: "README", Passed: true, Path: "README.md", Message: "说明项目用途"},
+			{Name: "CI build command", Passed: false, Path: ".github/workflows/ci.yml", Message: "缺少内容：go build ./cmd/oss-maintainer-kit", Recommendation: "在 CI workflow 中加入 go build ./cmd/oss-maintainer-kit。"},
+		},
+	})
+	for _, want := range []string{
+		"## 失败项修复建议",
+		"CI build command",
+		"在 CI workflow 中加入 go build ./cmd/oss-maintainer-kit。",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing %q:\n%s", want, doc)
 		}
 	}
 }

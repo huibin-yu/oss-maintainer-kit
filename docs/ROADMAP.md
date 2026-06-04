@@ -14,6 +14,7 @@
 - 支持 SPDX 2.3 JSON SBOM 生成，为供应链审查和商用尽调提供可复验材料。
 - 支持 tag 发布产物 workflow，生成多平台 CLI、SBOM、SHA256 checksums 和 provenance attestation。
 - 支持 OSSF Scorecard 风格的本地治理内容检查，覆盖 CI 权限、测试构建命令、govulncheck、OpenSSF Scorecard、SARIF 上传、Dependabot 覆盖和 PR 模板提示。
+- 支持仓库治理检查项的分项解释和修复建议。
 - 支持可配置发布准备检查，结合 issues、PRs、仓库健康度和发布策略输出 READY/BLOCKED、阻塞项和发布前命令。
 - 支持 release-check GitHub Actions workflow，在 PR 和 main 分支上导出当前仓库真实数据，并在发布被策略阻塞时失败。
 
@@ -22,7 +23,7 @@
 - 完善 GitHub REST API 输入。
 - 增加分页、时间范围过滤和 GraphQL 支持。
 - 输出更细粒度的维护优先级解释。
-- 增加仓库治理检查项的分项解释和修复建议。
+- 增加仓库健康度趋势报告。
 
 ## v0.3
 

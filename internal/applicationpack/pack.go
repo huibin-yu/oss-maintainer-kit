@@ -87,6 +87,9 @@ func Markdown(pack Pack) string {
 		fmt.Fprintf(&b, "### 需要补齐的申请前事项\n\n")
 		for _, check := range missing {
 			fmt.Fprintf(&b, "- `%s`：%s\n", check.Path, check.Message)
+			if check.Recommendation != "" {
+				fmt.Fprintf(&b, "  建议：%s\n", check.Recommendation)
+			}
 		}
 	}
 

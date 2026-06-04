@@ -10,7 +10,7 @@
 - `release-notes`：从已合并 PR 生成发布说明草稿。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
-- `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量。
+- `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
@@ -300,6 +300,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
+- health remediation：对缺失治理项输出可执行修复建议，减少申请前人工排查成本。
 - application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
@@ -343,11 +344,6 @@ internal/ai              OpenAI-compatible review client
 examples                 示例数据
 docs                     申请与路线图材料
 ```
-
-## 路线图
-
-- 增加 OSSF Scorecard 风格的分项解释和修复建议。
-- 增加仓库健康度趋势报告。
 
 ## 许可证
 

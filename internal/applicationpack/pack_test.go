@@ -25,7 +25,7 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 			Score: 84,
 			Checks: []health.Check{
 				{Name: "README", Passed: true, Path: "README.md", Message: "说明项目用途"},
-				{Name: "CI workflow", Passed: false, Path: ".github/workflows/ci.yml", Message: "缺失：提供自动测试和构建"},
+				{Name: "CI workflow", Passed: false, Path: ".github/workflows/ci.yml", Message: "缺失：提供自动测试和构建", Recommendation: "添加 CI workflow。"},
 			},
 		},
 	}))
@@ -40,6 +40,7 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 		"security workflow",
 		"健康度评分：**84/100**",
 		"需要补齐的申请前事项",
+		"建议：添加 CI workflow。",
 		"rtk go test ./...",
 		"sbom --root . --project oss-maintainer-kit",
 	} {

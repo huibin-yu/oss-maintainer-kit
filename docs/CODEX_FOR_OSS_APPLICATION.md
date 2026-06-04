@@ -26,7 +26,7 @@
 - 生成 SPDX 2.3 JSON SBOM，为供应链审查、商用尽调和发布归档提供机器可读证据。
 - 在版本 tag 上构建多平台 CLI，生成 checksums，并通过 GitHub artifact attestation 生成发布产物 provenance。
 - 提供可离线运行、可审查、可测试的规则引擎。
-- 提供仓库治理检查，帮助维护者补齐 README、License、Security、CI、govulncheck、Scorecard、Issue/PR 模板、路线图和关键 workflow 内容质量。
+- 提供仓库治理检查和失败项修复建议，帮助维护者补齐 README、License、Security、CI、govulncheck、Scorecard、Issue/PR 模板、路线图和关键 workflow 内容质量。
 - 后续可作为 Codex 辅助开源维护的示例项目。
 
 ## 申请表可填写内容
