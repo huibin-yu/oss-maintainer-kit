@@ -55,6 +55,15 @@ func Markdown(project string, summary model.MaintainerReport) string {
 	}
 	for _, item := range summary.TopSuggestedWork {
 		fmt.Fprintf(&b, "- #%d `%s` %s：%s\n", item.Number, item.Priority, item.Title, strings.Join(item.Suggested, ", "))
+		if len(item.Reasons) > 0 {
+			fmt.Fprintf(&b, "  - 原因：%s\n", strings.Join(item.Reasons, "；"))
+		}
+		if len(item.Evidence) > 0 {
+			fmt.Fprintf(&b, "  - 证据：%s\n", strings.Join(item.Evidence, "；"))
+		}
+		if item.Action != "" {
+			fmt.Fprintf(&b, "  - 建议动作：%s\n", item.Action)
+		}
 	}
 	return b.String()
 }

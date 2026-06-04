@@ -33,6 +33,8 @@ type TriageResult struct {
 	Priority      string   `json:"priority"`
 	Suggested     []string `json:"suggested_labels"`
 	Reasons       []string `json:"reasons"`
+	Evidence      []string `json:"evidence"`
+	Action        string   `json:"action"`
 	StaleDays     int      `json:"stale_days"`
 	NeedsReview   bool     `json:"needs_review"`
 	NeedsSecurity bool     `json:"needs_security_review"`

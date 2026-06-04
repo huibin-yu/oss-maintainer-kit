@@ -102,9 +102,9 @@ func runTriage(args []string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ISSUE\tPRIORITY\tSTALE_DAYS\tLABELS\tTITLE")
+	fmt.Fprintln(w, "ISSUE\tPRIORITY\tSTALE_DAYS\tLABELS\tACTION\tTITLE")
 	for _, result := range results {
-		fmt.Fprintf(w, "#%d\t%s\t%d\t%s\t%s\n", result.Number, result.Priority, result.StaleDays, strings.Join(result.Suggested, ","), result.Title)
+		fmt.Fprintf(w, "#%d\t%s\t%d\t%s\t%s\t%s\n", result.Number, result.Priority, result.StaleDays, strings.Join(result.Suggested, ","), result.Action, result.Title)
 	}
 	return w.Flush()
 }

@@ -26,6 +26,12 @@ func TestIssueDetectsSecurityAndPriority(t *testing.T) {
 	if !contains(result.Suggested, "security") {
 		t.Fatalf("labels = %#v, want security", result.Suggested)
 	}
+	if !contains(result.Evidence, "命中关键词：token leak") {
+		t.Fatalf("evidence = %#v", result.Evidence)
+	}
+	if result.Action == "" || result.Action != "优先安排安全复核，确认影响范围、修复方案和回归测试。" {
+		t.Fatalf("action = %q", result.Action)
+	}
 }
 
 func TestIssuesSkipClosedAndSortByPriority(t *testing.T) {
@@ -41,6 +47,26 @@ func TestIssuesSkipClosedAndSortByPriority(t *testing.T) {
 	}
 	if results[0].Number != 2 || results[0].Priority != "p1" {
 		t.Fatalf("first result = %#v, want panic issue first", results[0])
+	}
+}
+
+func TestIssueExplainsStaleMaintenanceWork(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	result := RuleSet{Now: now}.Issue(model.Issue{
+		Number:    9,
+		Title:     "support new config option",
+		State:     "open",
+		UpdatedAt: now.AddDate(0, 0, -45),
+	})
+
+	if !result.NeedsReview {
+		t.Fatal("expected needs review")
+	}
+	if !contains(result.Evidence, "已停滞 45 天") {
+		t.Fatalf("evidence = %#v", result.Evidence)
+	}
+	if result.Action == "" {
+		t.Fatal("missing action")
 	}
 }
 

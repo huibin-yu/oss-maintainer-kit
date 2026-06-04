@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-`oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
+`oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成带命中证据和建议动作的 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
 
 当前版本还支持 GitHub REST/GraphQL API 分页数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、安全专项报告与 GitHub Actions 安全门禁、SPDX SBOM 生成、可配置发布准备检查、release-check GitHub Actions 门禁、tag 发布产物与 provenance、开源仓库健康度检查、健康度趋势报告、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
@@ -12,7 +12,7 @@
 
 ## 开源价值
 
-- 降低维护者处理 issue 和 PR 的重复成本。
+- 降低维护者处理 issue 和 PR 的重复成本，并让优先级判断具备可审查的原因、证据和建议动作。
 - 把安全风险、回归风险、长期未更新问题显式暴露出来。
 - 对 PR diff 做确定性风险扫描，并把结果交给 Codex 复核。
 - 在发布前按仓库策略检查安全 issue、stale issue、仓库健康度、风险提示和发布命令，减少遗漏。
@@ -57,7 +57,7 @@ oss-maintainer-kit is a Go CLI that helps open-source maintainers export paginat
 ### How you plan to use Codex
 
 ```text
-I plan to use Codex to review pull requests, validate local diff-risk findings, expand issue triage rules, improve GitHub export handling, generate repository health recommendations, improve test coverage, detect edge cases in release-note generation, and maintain security-related workflows. The project is intentionally built around common OSS maintainer tasks where Codex can provide measurable value.
+I plan to use Codex to review pull requests, validate local diff-risk findings, expand explainable issue triage rules, improve GitHub export handling, generate repository health recommendations, improve test coverage, detect edge cases in release-note generation, and maintain security-related workflows. The project is intentionally built around common OSS maintainer tasks where Codex can provide measurable value.
 ```
 
 ### Why API credits help

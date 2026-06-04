@@ -24,6 +24,24 @@ func TestMaintainerReportCountsRiskItems(t *testing.T) {
 	}
 }
 
+func TestMarkdownIncludesPriorityExplanation(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	summary := Maintainer([]model.Issue{
+		{Number: 1, Title: "security token leak", State: "open", UpdatedAt: now.AddDate(0, 0, -40)},
+	}, nil, triage.RuleSet{Now: now})
+
+	doc := Markdown("demo", summary)
+	for _, want := range []string{
+		"原因：包含安全或凭证风险关键词",
+		"证据：命中关键词：security",
+		"建议动作：优先安排安全复核",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing %q:\n%s", want, doc)
+		}
+	}
+}
+
 func TestReleaseNotesGroupsMergedPullRequests(t *testing.T) {
 	doc := ReleaseNotes("v0.2.0", []model.PullRequest{
 		{Number: 3, Title: "fix parser panic", Author: "alice", Merged: true},

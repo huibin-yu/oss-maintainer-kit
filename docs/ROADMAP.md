@@ -20,10 +20,11 @@
 - 支持可配置发布准备检查，结合 issues、PRs、仓库健康度和发布策略输出 READY/BLOCKED、阻塞项和发布前命令。
 - 支持 release-check GitHub Actions workflow，在 PR 和 main 分支上导出当前仓库真实数据，并在发布被策略阻塞时失败。
 - 支持安全专项报告和 GitHub Actions 门禁，聚合安全 issue、PR diff 风险发现和仓库治理缺口，并上传 Markdown/JSON 报告证据。
+- 支持可解释 issue triage，在优先级结果中输出命中原因、证据和建议动作。
 
 ## v0.2
 
-- 输出更细粒度的维护优先级解释。
+- 支持将可解释 triage 结果用于 GitHub 评论和 Checks 输出。
 
 ## v0.3
 

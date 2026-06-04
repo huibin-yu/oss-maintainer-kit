@@ -132,6 +132,27 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 	}
 }
 
+func TestRunTriageTableIncludesAction(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"triage",
+			"--input", filepath.Join(root, "issues.json"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "ACTION") || !strings.Contains(output, "优先安排安全复核") {
+		t.Fatalf("missing action column:\n%s", output)
+	}
+}
+
 func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
