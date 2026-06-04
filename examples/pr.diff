@@ -1,0 +1,9 @@
+diff --git a/internal/server/server.go b/internal/server/server.go
+--- a/internal/server/server.go
++++ b/internal/server/server.go
+@@ -10,6 +10,9 @@ func start() {
+ 	log.Println("starting server")
++	const api_key = "demo-secret"
++	http.Get("http://example.com/health")
++	// TODO: add timeout and error handling
+ }

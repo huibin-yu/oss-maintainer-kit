@@ -1,0 +1,5 @@
+/oss-maintainer-kit
+*.test
+coverage.out
+maintainer-report.md
+.DS_Store

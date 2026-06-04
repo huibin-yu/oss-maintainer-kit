@@ -1,0 +1,32 @@
+[
+  {
+    "number": 12,
+    "title": "token leak in debug output",
+    "body": "When debug mode is enabled the CLI prints a secret token in logs.",
+    "state": "open",
+    "author": "alice",
+    "labels": ["bug"],
+    "created_at": "2026-04-20T08:00:00Z",
+    "updated_at": "2026-04-22T08:00:00Z"
+  },
+  {
+    "number": 18,
+    "title": "panic when config file is empty",
+    "body": "The service crashes on startup with an empty YAML file.",
+    "state": "open",
+    "author": "bob",
+    "labels": [],
+    "created_at": "2026-05-01T08:00:00Z",
+    "updated_at": "2026-05-02T08:00:00Z"
+  },
+  {
+    "number": 21,
+    "title": "docs: add GitHub Actions example",
+    "body": "The README should include a CI workflow example.",
+    "state": "open",
+    "author": "carol",
+    "labels": ["documentation"],
+    "created_at": "2026-05-16T08:00:00Z",
+    "updated_at": "2026-05-18T08:00:00Z"
+  }
+]

@@ -1,0 +1,321 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/ai"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/codexplan"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/diffreview"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/github"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/input"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
+)
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	if len(args) == 0 {
+		usage()
+		return nil
+	}
+
+	switch args[0] {
+	case "triage":
+		return runTriage(args[1:])
+	case "release-notes":
+		return runReleaseNotes(args[1:])
+	case "report":
+		return runReport(args[1:])
+	case "health":
+		return runHealth(args[1:])
+	case "codex-plan":
+		return runCodexPlan(args[1:])
+	case "github-export":
+		return runGitHubExport(args[1:])
+	case "review-diff":
+		return runReviewDiff(args[1:])
+	case "ai-review":
+		return runAIReview(args[1:])
+	case "help", "-h", "--help":
+		usage()
+		return nil
+	default:
+		return fmt.Errorf("unknown command %q", args[0])
+	}
+}
+
+func runTriage(args []string) error {
+	fs := flag.NewFlagSet("triage", flag.ContinueOnError)
+	inputPath := fs.String("input", "examples/issues.json", "issues JSON file")
+	format := fs.String("format", "table", "output format: table or json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*inputPath)
+	if err != nil {
+		return err
+	}
+	results := triage.RuleSet{}.Issues(issues)
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(results)
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ISSUE\tPRIORITY\tSTALE_DAYS\tLABELS\tTITLE")
+	for _, result := range results {
+		fmt.Fprintf(w, "#%d\t%s\t%d\t%s\t%s\n", result.Number, result.Priority, result.StaleDays, strings.Join(result.Suggested, ","), result.Title)
+	}
+	return w.Flush()
+}
+
+func runReleaseNotes(args []string) error {
+	fs := flag.NewFlagSet("release-notes", flag.ContinueOnError)
+	inputPath := fs.String("input", "examples/pulls.json", "pull requests JSON file")
+	version := fs.String("version", "v0.1.0", "release version")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	pulls, err := input.PullRequests(*inputPath)
+	if err != nil {
+		return err
+	}
+	fmt.Print(report.ReleaseNotes(*version, pulls))
+	return nil
+}
+
+func runReport(args []string) error {
+	fs := flag.NewFlagSet("report", flag.ContinueOnError)
+	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
+	pullsPath := fs.String("pulls", "examples/pulls.json", "pull requests JSON file")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	output := fs.String("output", "", "write markdown report to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*issuesPath)
+	if err != nil {
+		return err
+	}
+	pulls, err := input.PullRequests(*pullsPath)
+	if err != nil {
+		return err
+	}
+	doc := report.Markdown(*project, report.Maintainer(issues, pulls, triage.RuleSet{}))
+	if *output == "" {
+		fmt.Print(doc)
+		return nil
+	}
+	return os.WriteFile(*output, []byte(doc), 0644)
+}
+
+func runReviewDiff(args []string) error {
+	fs := flag.NewFlagSet("review-diff", flag.ContinueOnError)
+	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	format := fs.String("format", "markdown", "output format: markdown, json, or sarif")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	diff, err := readAll(*diffPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.Review(strings.NewReader(diff))
+	if err != nil {
+		return err
+	}
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(findings)
+	}
+	if *format == "sarif" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(sarif.FromFindings(findings))
+	}
+	fmt.Print(diffreview.Markdown(findings))
+	return nil
+}
+
+func runAIReview(args []string) error {
+	fs := flag.NewFlagSet("ai-review", flag.ContinueOnError)
+	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	baseURL := fs.String("base-url", "https://api.openai.com/v1", "OpenAI-compatible API base URL")
+	model := fs.String("model", "gpt-4.1-mini", "review model")
+	apiKeyEnv := fs.String("api-key-env", "OPENAI_API_KEY", "environment variable that stores API key")
+	promptOnly := fs.Bool("prompt-only", true, "print review prompt instead of calling API")
+	output := fs.String("output", "", "write review output to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	diff, err := readAll(*diffPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.Review(strings.NewReader(diff))
+	if err != nil {
+		return err
+	}
+	req := ai.ReviewRequest{Project: *project, Diff: diff, Findings: findings}
+	var content string
+	if *promptOnly {
+		content = ai.Prompt(req)
+	} else {
+		result, err := ai.Client{
+			BaseURL: *baseURL,
+			APIKey:  os.Getenv(*apiKeyEnv),
+			Model:   *model,
+		}.Review(context.Background(), req)
+		if err != nil {
+			return err
+		}
+		content = result.Content
+	}
+	if *output == "" {
+		fmt.Print(content)
+		if !strings.HasSuffix(content, "\n") {
+			fmt.Println()
+		}
+		return nil
+	}
+	return os.WriteFile(*output, []byte(content), 0644)
+}
+
+func readAll(path string) (string, error) {
+	var data []byte
+	var err error
+	if path == "" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(path)
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func runHealth(args []string) error {
+	fs := flag.NewFlagSet("health", flag.ContinueOnError)
+	root := fs.String("root", ".", "repository root")
+	format := fs.String("format", "markdown", "output format: markdown or json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	summary := health.Repository(*root)
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(summary)
+	}
+	fmt.Print(health.Markdown(summary))
+	return nil
+}
+
+func runCodexPlan(args []string) error {
+	fs := flag.NewFlagSet("codex-plan", flag.ContinueOnError)
+	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
+	pullsPath := fs.String("pulls", "examples/pulls.json", "pull requests JSON file")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	repository := fs.String("repo-url", "", "public repository URL")
+	output := fs.String("output", "", "write markdown plan to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*issuesPath)
+	if err != nil {
+		return err
+	}
+	pulls, err := input.PullRequests(*pullsPath)
+	if err != nil {
+		return err
+	}
+	summary := report.Maintainer(issues, pulls, triage.RuleSet{})
+	doc := codexplan.Markdown(codexplan.Build(*project, *repository, summary))
+	if *output == "" {
+		fmt.Print(doc)
+		return nil
+	}
+	return os.WriteFile(*output, []byte(doc), 0644)
+}
+
+func runGitHubExport(args []string) error {
+	fs := flag.NewFlagSet("github-export", flag.ContinueOnError)
+	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	kind := fs.String("kind", "issues", "export kind: issues or pulls")
+	limit := fs.Int("limit", 100, "max items to export, capped at 100")
+	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
+	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	output := fs.String("output", "", "write JSON output to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	client := github.Client{
+		BaseURL: *baseURL,
+		Token:   os.Getenv(*tokenEnv),
+	}
+	var data any
+	var err error
+	switch *kind {
+	case "issues":
+		data, err = client.Issues(context.Background(), *repo, *limit)
+	case "pulls":
+		data, err = client.PullRequests(context.Background(), *repo, *limit)
+	default:
+		return fmt.Errorf("unknown kind %q", *kind)
+	}
+	if err != nil {
+		return err
+	}
+
+	encoded, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	encoded = append(encoded, '\n')
+	if *output == "" {
+		fmt.Print(string(encoded))
+		return nil
+	}
+	return os.WriteFile(*output, encoded, 0644)
+}
+
+func usage() {
+	fmt.Println(`oss-maintainer-kit - open source maintainer automation CLI
+
+Usage:
+  oss-maintainer-kit triage --input examples/issues.json [--format table|json]
+  oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
+  oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
+  oss-maintainer-kit health --root .
+  oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
+  oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json
+  oss-maintainer-kit review-diff --diff examples/pr.diff [--format markdown|json|sarif]
+  oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only`)
+}
