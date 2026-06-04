@@ -201,6 +201,72 @@ func TestRunReleaseCheckFailOnBlockedReturnsError(t *testing.T) {
 	}
 }
 
+func TestRunSecurityReportJSONAggregatesIssuesAndDiff(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,2 +1,3 @@
+ package main
++const token = "sk_live_123456"
+`)
+	writeTestFile(t, root, "SECURITY.md", "security policy")
+	writeTestFile(t, root, "README.md", "readme")
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"security-report",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--diff", filepath.Join(root, "pr.diff"),
+			"--root", root,
+			"--project", "demo",
+			"--format", "json",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result struct {
+		Project            string `json:"project"`
+		OpenSecurityIssues int    `json:"open_security_issues"`
+		CriticalFindings   int    `json:"critical_findings"`
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Project != "demo" || result.OpenSecurityIssues != 1 || result.CriticalFindings != 1 {
+		t.Fatalf("unexpected security report: %s", output)
+	}
+}
+
+func TestRunSecurityReportWritesMarkdown(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[]`)
+
+	outputPath := filepath.Join(root, "security.md")
+	err := run([]string{
+		"security-report",
+		"--issues", filepath.Join(root, "issues.json"),
+		"--root", root,
+		"--project", "demo",
+		"--output", outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "# demo 安全报告") {
+		t.Fatalf("missing security report title: %s", data)
+	}
+}
+
 func TestRunSBOMWritesSPDXJSON(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "go.mod", `module github.com/acme/demo

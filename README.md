@@ -12,6 +12,7 @@
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
 - `health-snapshot` / `health-trend`：把健康度评分追加为 JSONL 历史快照，并生成趋势报告。
+- `security-report`：聚合安全 issue、PR diff 风险发现和仓库安全治理缺口，生成商用尽调可读的安全报告。
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
@@ -109,6 +110,17 @@ go run ./cmd/oss-maintainer-kit health-snapshot \
 
 go run ./cmd/oss-maintainer-kit health-trend \
   --history health-history.jsonl
+```
+
+生成安全专项报告：
+
+```bash
+go run ./cmd/oss-maintainer-kit security-report \
+  --issues examples/issues.json \
+  --diff examples/pr.diff \
+  --root . \
+  --project oss-maintainer-kit \
+  --output security-report.md
 ```
 
 生成 SPDX SBOM：
@@ -313,6 +325,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
+- Security report：聚合安全 issue、PR diff 风险发现和仓库治理缺口，为商用安全审查和发布前风险接受提供证据。
 - SBOM：输出 SPDX 2.3 JSON，为依赖审计、商用尽调和发布归档提供可机器读取证据。
 - Release artifacts：在版本 tag 上构建多平台 CLI，生成 SBOM、checksums 和 provenance attestation。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
@@ -354,6 +367,7 @@ internal/releasecheck    发布准备检查
 internal/github          GitHub REST API 数据导出
 internal/health          开源仓库健康度检查
 internal/healthtrend     仓库健康度趋势报告
+internal/securityreport  安全专项报告
 internal/sbom            SPDX SBOM 生成
 internal/codexplan       Codex 使用计划生成
 internal/applicationpack  Codex for OSS 申请证据包生成

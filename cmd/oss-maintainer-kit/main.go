@@ -26,6 +26,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sbom"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/securityreport"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
 )
 
@@ -57,6 +58,8 @@ func run(args []string) error {
 		return runHealthSnapshot(args[1:])
 	case "health-trend":
 		return runHealthTrend(args[1:])
+	case "security-report":
+		return runSecurityReport(args[1:])
 	case "sbom":
 		return runSBOM(args[1:])
 	case "codex-plan":
@@ -420,6 +423,61 @@ func runHealthTrend(args []string) error {
 	return nil
 }
 
+func runSecurityReport(args []string) error {
+	fs := flag.NewFlagSet("security-report", flag.ContinueOnError)
+	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
+	diffPath := fs.String("diff", "", "optional unified diff file")
+	configPath := fs.String("config", "", "optional JSON review rules config for diff scanning")
+	root := fs.String("root", ".", "repository root for governance checks")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	format := fs.String("format", "markdown", "output format: markdown or json")
+	output := fs.String("output", "", "write security report to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*issuesPath)
+	if err != nil {
+		return err
+	}
+	var findings []diffreview.Finding
+	if *diffPath != "" {
+		diff, err := readAll(*diffPath)
+		if err != nil {
+			return err
+		}
+		cfg, err := loadReviewConfig(*configPath)
+		if err != nil {
+			return err
+		}
+		findings, err = diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
+		if err != nil {
+			return err
+		}
+	}
+	report := securityreport.Build(securityreport.Input{
+		Project:  *project,
+		Issues:   issues,
+		Findings: findings,
+		Health:   health.Repository(*root),
+	})
+	var content []byte
+	if *format == "json" {
+		content, err = json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return err
+		}
+		content = append(content, '\n')
+	} else {
+		content = []byte(securityreport.Markdown(report))
+	}
+	if *output == "" {
+		fmt.Print(string(content))
+		return nil
+	}
+	return os.WriteFile(*output, content, 0644)
+}
+
 func currentGitRef(root string) string {
 	cmd := exec.Command("git", "-C", root, "rev-parse", "--short", "HEAD")
 	out, err := cmd.Output()
@@ -588,6 +646,7 @@ Usage:
   oss-maintainer-kit health --root .
   oss-maintainer-kit health-snapshot --root . --history health-history.jsonl
   oss-maintainer-kit health-trend --history health-history.jsonl
+  oss-maintainer-kit security-report --issues examples/issues.json [--diff examples/pr.diff] --root .
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
