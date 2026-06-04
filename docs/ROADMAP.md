@@ -10,6 +10,7 @@
 - 支持 SARIF 2.1.0 输出、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot 和 PR diff 扫描 workflow。
 - 支持 JSON 自定义 review 规则和 GitHub PR 评论格式输出。
 - 支持 GitHub API 创建或更新 PR review comment，使用稳定 marker 避免重复评论。
+- 支持 GitHub REST API 分页导出，并按 state、since 和 limit 过滤 issues/PRs。
 - 支持 Codex for OSS 申请证据包生成，聚合维护指标、仓库健康度、Codex 使用计划和验证命令。
 - 支持 SPDX 2.3 JSON SBOM 生成，为供应链审查和商用尽调提供可复验材料。
 - 支持 tag 发布产物 workflow，生成多平台 CLI、SBOM、SHA256 checksums 和 provenance attestation。
@@ -21,8 +22,7 @@
 
 ## v0.2
 
-- 完善 GitHub REST API 输入。
-- 增加分页、时间范围过滤和 GraphQL 支持。
+- 增加 GraphQL 支持。
 - 输出更细粒度的维护优先级解释。
 - 增加 GitHub REST API 分页、时间范围过滤和 GraphQL 支持。
 

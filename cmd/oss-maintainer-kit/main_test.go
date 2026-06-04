@@ -58,6 +58,45 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	}
 }
 
+func TestRunGitHubExportUsesPaginationFilters(t *testing.T) {
+	var state, since, perPage string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/acme/demo/issues" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		state = r.URL.Query().Get("state")
+		since = r.URL.Query().Get("since")
+		perPage = r.URL.Query().Get("per_page")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"number":1,"title":"bug","body":"","state":"open","user":{"login":"alice"},"labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+		]`))
+	}))
+	defer server.Close()
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-export",
+			"--repo", "acme/demo",
+			"--kind", "issues",
+			"--state", "open",
+			"--since", "2026-06-01T00:00:00Z",
+			"--limit", "1",
+			"--per-page", "25",
+			"--base-url", server.URL,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	if state != "open" || since != "2026-06-01T00:00:00Z" || perPage != "25" {
+		t.Fatalf("query state=%s since=%s per_page=%s", state, since, perPage)
+	}
+	if !strings.Contains(output, `"number": 1`) {
+		t.Fatalf("missing exported issue: %s", output)
+	}
+}
+
 func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[

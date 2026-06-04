@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
@@ -15,9 +16,20 @@ type Client struct {
 	HTTP    *http.Client
 }
 
+type ExportOptions struct {
+	Limit   int
+	State   string
+	Since   *time.Time
+	PerPage int
+}
+
 func (c Client) Issues(ctx context.Context, repo string, limit int) ([]model.Issue, error) {
+	return c.IssuesWithOptions(ctx, repo, ExportOptions{Limit: limit})
+}
+
+func (c Client) IssuesWithOptions(ctx context.Context, repo string, options ExportOptions) ([]model.Issue, error) {
 	var raw []issueResponse
-	if err := c.fetch(ctx, repo, "issues", limit, &raw); err != nil {
+	if err := c.fetchAll(ctx, repo, "issues", options, &raw); err != nil {
 		return nil, err
 	}
 	issues := make([]model.Issue, 0, len(raw))
@@ -41,8 +53,12 @@ func (c Client) Issues(ctx context.Context, repo string, limit int) ([]model.Iss
 }
 
 func (c Client) PullRequests(ctx context.Context, repo string, limit int) ([]model.PullRequest, error) {
+	return c.PullRequestsWithOptions(ctx, repo, ExportOptions{Limit: limit})
+}
+
+func (c Client) PullRequestsWithOptions(ctx context.Context, repo string, options ExportOptions) ([]model.PullRequest, error) {
 	var raw []pullResponse
-	if err := c.fetch(ctx, repo, "pulls", limit, &raw); err != nil {
+	if err := c.fetchAll(ctx, repo, "pulls", options, &raw); err != nil {
 		return nil, err
 	}
 	pulls := make([]model.PullRequest, 0, len(raw))
@@ -63,20 +79,110 @@ func (c Client) PullRequests(ctx context.Context, repo string, limit int) ([]mod
 	return pulls, nil
 }
 
-func (c Client) fetch(ctx context.Context, repo, resource string, limit int, dst any) error {
+func (c Client) fetchAll(ctx context.Context, repo, resource string, options ExportOptions, dst any) error {
 	if repo == "" {
 		return fmt.Errorf("repo is required, expected owner/name")
 	}
-	if limit <= 0 {
-		limit = 100
+	options = options.withDefaults()
+	switch out := dst.(type) {
+	case *[]issueResponse:
+		var all []issueResponse
+		for page := 1; len(all) < options.Limit; page++ {
+			var batch []issueResponse
+			if err := c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), exportQuery(resource, options, page), nil, &batch); err != nil {
+				return err
+			}
+			if len(batch) == 0 {
+				break
+			}
+			for _, item := range batch {
+				if matchesSince(item.UpdatedAt, options.Since) {
+					all = append(all, item)
+				}
+				if len(all) >= options.Limit {
+					break
+				}
+			}
+			if len(batch) < options.PerPage {
+				break
+			}
+		}
+		if len(all) > options.Limit {
+			all = all[:options.Limit]
+		}
+		*out = all
+	case *[]pullResponse:
+		var all []pullResponse
+		for page := 1; len(all) < options.Limit; page++ {
+			var batch []pullResponse
+			if err := c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), exportQuery(resource, options, page), nil, &batch); err != nil {
+				return err
+			}
+			if len(batch) == 0 {
+				break
+			}
+			olderThanSince := 0
+			for _, item := range batch {
+				if matchesSince(item.UpdatedAt, options.Since) {
+					all = append(all, item)
+				} else {
+					olderThanSince++
+				}
+				if len(all) >= options.Limit {
+					break
+				}
+			}
+			if len(batch) < options.PerPage {
+				break
+			}
+			if options.Since != nil && olderThanSince == len(batch) {
+				break
+			}
+		}
+		if len(all) > options.Limit {
+			all = all[:options.Limit]
+		}
+		*out = all
+	default:
+		return fmt.Errorf("unsupported export destination %T", dst)
 	}
-	if limit > 100 {
-		limit = 100
+	return nil
+}
+
+func (o ExportOptions) withDefaults() ExportOptions {
+	if o.Limit <= 0 {
+		o.Limit = 100
 	}
-	return c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), map[string]string{
-		"state":    "all",
-		"per_page": perPage(limit),
-	}, nil, dst)
+	if o.State == "" {
+		o.State = "all"
+	}
+	if o.PerPage <= 0 || o.PerPage > 100 {
+		o.PerPage = 100
+	}
+	return o
+}
+
+func exportQuery(resource string, options ExportOptions, page int) map[string]string {
+	query := map[string]string{
+		"state":    options.State,
+		"per_page": strconv.Itoa(options.PerPage),
+		"page":     strconv.Itoa(page),
+	}
+	if options.Since != nil && resource == "issues" {
+		query["since"] = options.Since.UTC().Format(time.RFC3339)
+	}
+	if options.Since != nil && resource == "pulls" {
+		query["sort"] = "updated"
+		query["direction"] = "desc"
+	}
+	return query
+}
+
+func matchesSince(value time.Time, since *time.Time) bool {
+	if since == nil {
+		return true
+	}
+	return !value.Before(*since)
 }
 
 func labels(values []labelResponse) []string {

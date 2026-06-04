@@ -524,7 +524,10 @@ func runGitHubExport(args []string) error {
 	fs := flag.NewFlagSet("github-export", flag.ContinueOnError)
 	repo := fs.String("repo", "", "GitHub repository in owner/name format")
 	kind := fs.String("kind", "issues", "export kind: issues or pulls")
-	limit := fs.Int("limit", 100, "max items to export, capped at 100")
+	limit := fs.Int("limit", 100, "max items to export")
+	perPage := fs.Int("per-page", 100, "GitHub API page size, capped at 100")
+	state := fs.String("state", "all", "GitHub state filter: open, closed, or all")
+	since := fs.String("since", "", "only export items updated at or after RFC3339 time")
 	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
 	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
 	output := fs.String("output", "", "write JSON output to file")
@@ -536,13 +539,25 @@ func runGitHubExport(args []string) error {
 		BaseURL: *baseURL,
 		Token:   os.Getenv(*tokenEnv),
 	}
+	options := github.ExportOptions{
+		Limit:   *limit,
+		State:   *state,
+		PerPage: *perPage,
+	}
+	if *since != "" {
+		value, err := time.Parse(time.RFC3339, *since)
+		if err != nil {
+			return fmt.Errorf("invalid --since, expected RFC3339: %w", err)
+		}
+		options.Since = &value
+	}
 	var data any
 	var err error
 	switch *kind {
 	case "issues":
-		data, err = client.Issues(context.Background(), *repo, *limit)
+		data, err = client.IssuesWithOptions(context.Background(), *repo, options)
 	case "pulls":
-		data, err = client.PullRequests(context.Background(), *repo, *limit)
+		data, err = client.PullRequestsWithOptions(context.Background(), *repo, options)
 	default:
 		return fmt.Errorf("unknown kind %q", *kind)
 	}
@@ -576,7 +591,7 @@ Usage:
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
-  oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json
+  oss-maintainer-kit github-export --repo owner/name --kind issues [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)

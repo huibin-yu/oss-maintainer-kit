@@ -15,7 +15,7 @@
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
-- `github-export`：从 GitHub REST API 导出 issues 或 PRs，便于接入真实仓库数据。
+- `github-export`：从 GitHub REST API 分页导出 issues 或 PRs，支持状态和更新时间窗口过滤，便于接入真实仓库数据。
 - `review-diff`：离线扫描 PR diff 中的硬编码密钥、命令执行、明文 HTTP、禁用 TLS 等风险。
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
 - `review-diff --config`：加载仓库自定义 JSON 规则。
@@ -149,6 +149,9 @@ go run ./cmd/oss-maintainer-kit application-pack \
 GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
   --repo owner/name \
   --kind issues \
+  --state open \
+  --since 2026-06-01T00:00:00Z \
+  --limit 200 \
   --output examples/issues.json
 ```
 
@@ -306,6 +309,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - Repository-specific rules：通过 JSON 配置给不同仓库定制 review 规则。
 - PR comments：生成带稳定标记的 Markdown 评论，便于后续 GitHub Bot 更新评论。
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
+- GitHub export：分页导出真实 issues/PRs，并按 state 和更新时间窗口缩小维护范围。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
