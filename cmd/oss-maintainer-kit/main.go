@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/ai"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/applicationpack"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/codexplan"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/diffreview"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/github"
@@ -47,6 +48,8 @@ func run(args []string) error {
 		return runHealth(args[1:])
 	case "codex-plan":
 		return runCodexPlan(args[1:])
+	case "application-pack":
+		return runApplicationPack(args[1:])
 	case "github-export":
 		return runGitHubExport(args[1:])
 	case "review-diff":
@@ -287,6 +290,40 @@ func runCodexPlan(args []string) error {
 	return os.WriteFile(*output, []byte(doc), 0644)
 }
 
+func runApplicationPack(args []string) error {
+	fs := flag.NewFlagSet("application-pack", flag.ContinueOnError)
+	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
+	pullsPath := fs.String("pulls", "examples/pulls.json", "pull requests JSON file")
+	root := fs.String("root", ".", "repository root for health checks")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	repository := fs.String("repo-url", "", "public repository URL")
+	output := fs.String("output", "", "write markdown application pack to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*issuesPath)
+	if err != nil {
+		return err
+	}
+	pulls, err := input.PullRequests(*pullsPath)
+	if err != nil {
+		return err
+	}
+	doc := applicationpack.Markdown(applicationpack.Build(applicationpack.Input{
+		Project:    *project,
+		Repository: *repository,
+		Issues:     issues,
+		Pulls:      pulls,
+		Health:     health.Repository(*root),
+	}))
+	if *output == "" {
+		fmt.Print(doc)
+		return nil
+	}
+	return os.WriteFile(*output, []byte(doc), 0644)
+}
+
 func runGitHubExport(args []string) error {
 	fs := flag.NewFlagSet("github-export", flag.ContinueOnError)
 	repo := fs.String("repo", "", "GitHub repository in owner/name format")
@@ -338,6 +375,7 @@ Usage:
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
+  oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only`)

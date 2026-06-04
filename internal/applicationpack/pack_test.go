@@ -1,0 +1,56 @@
+package applicationpack
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
+)
+
+func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	doc := Markdown(Build(Input{
+		Project:    "oss-maintainer-kit",
+		Repository: "https://github.com/acme/oss-maintainer-kit",
+		Issues: []model.Issue{
+			{Number: 1, Title: "security token leak", State: "open", UpdatedAt: now.AddDate(0, 0, -40)},
+			{Number: 2, Title: "docs typo", State: "open", UpdatedAt: now},
+		},
+		Pulls: []model.PullRequest{
+			{Number: 10, Title: "feat: add review diff", Author: "alice", Merged: true},
+		},
+		Health: health.Summary{
+			Score: 84,
+			Checks: []health.Check{
+				{Name: "README", Passed: true, Path: "README.md", Message: "说明项目用途"},
+				{Name: "CI workflow", Passed: false, Path: ".github/workflows/ci.yml", Message: "缺失：提供自动测试和构建"},
+			},
+		},
+	}))
+
+	for _, want := range []string{
+		"# Codex for OSS 申请证据包",
+		"https://github.com/acme/oss-maintainer-kit",
+		"Project description",
+		"PR review",
+		"issue triage",
+		"release workflow",
+		"security workflow",
+		"健康度评分：**84/100**",
+		"需要补齐的申请前事项",
+		"rtk go test ./...",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing %q:\n%s", want, doc)
+		}
+	}
+}
+
+func TestMarkdownUsesFallbackRepositoryText(t *testing.T) {
+	doc := Markdown(Build(Input{Project: "demo"}))
+	if !strings.Contains(doc, "发布后填写公开 GitHub 仓库地址") {
+		t.Fatalf("missing repository fallback:\n%s", doc)
+	}
+}

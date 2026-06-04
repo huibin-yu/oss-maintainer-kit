@@ -11,6 +11,7 @@
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板和路线图。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
+- `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
 - `github-export`：从 GitHub REST API 导出 issues 或 PRs，便于接入真实仓库数据。
 - `review-diff`：离线扫描 PR diff 中的硬编码密钥、命令执行、明文 HTTP、禁用 TLS 等风险。
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
@@ -78,6 +79,18 @@ go run ./cmd/oss-maintainer-kit codex-plan \
   --project oss-maintainer-kit \
   --repo-url https://github.com/<your-account>/oss-maintainer-kit \
   --output codex-plan.md
+```
+
+生成 Codex for OSS 申请证据包：
+
+```bash
+go run ./cmd/oss-maintainer-kit application-pack \
+  --issues examples/issues.json \
+  --pulls examples/pulls.json \
+  --root . \
+  --project oss-maintainer-kit \
+  --repo-url https://github.com/<your-account>/oss-maintainer-kit \
+  --output codex-oss-application.md
 ```
 
 从 GitHub 导出数据：
@@ -206,6 +219,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - release workflow：根据合并 PR 自动生成发布说明草稿。
 - security workflow：识别安全关键词、凭证泄露和高风险问题。
 - repository health：检查开源治理材料是否完整，便于维护者持续改进仓库质量。
+- application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
 
@@ -234,6 +248,7 @@ internal/report          报告与发布说明生成
 internal/github          GitHub REST API 数据导出
 internal/health          开源仓库健康度检查
 internal/codexplan       Codex 使用计划生成
+internal/applicationpack  Codex for OSS 申请证据包生成
 internal/diffreview      PR diff 风险扫描
 internal/sarif           SARIF 2.1.0 输出
 internal/reviewconfig    自定义 review 规则配置
@@ -245,8 +260,8 @@ docs                     申请与路线图材料
 
 ## 路线图
 
-- 增加 OpenAI-compatible provider，用 Codex 生成更细粒度的 review 建议。
-- 支持 Markdown 注释输出，便于接入 GitHub Checks。
+- 增加 GitHub API 自动创建或更新 PR review comment。
+- 增加 OSSF Scorecard 风格的治理检查项。
 - 增加仓库健康度趋势报告。
 
 ## 许可证

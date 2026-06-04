@@ -9,6 +9,7 @@
 - 提供 PR diff 风险扫描和 OpenAI-compatible review prompt 生成。
 - 支持 SARIF 2.1.0 输出、CodeQL、Dependabot 和 PR diff 扫描 workflow。
 - 支持 JSON 自定义 review 规则和 GitHub PR 评论格式输出。
+- 支持 Codex for OSS 申请证据包生成，聚合维护指标、仓库健康度、Codex 使用计划和验证命令。
 
 ## v0.2
 

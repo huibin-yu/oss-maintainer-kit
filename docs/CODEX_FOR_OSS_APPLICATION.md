@@ -8,6 +8,8 @@
 
 当前版本还支持 GitHub REST API 数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、SARIF 输出、OpenAI-compatible review prompt 生成、开源仓库健康度检查、CodeQL、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
+新增的 `application-pack` 命令会把维护报告、仓库健康度、Codex 使用计划、API credits 用途和可执行验证命令聚合成一份申请证据包，便于在公开仓库中展示项目与 Codex for OSS 试用目标的匹配度。
+
 ## 开源价值
 
 - 降低维护者处理 issue 和 PR 的重复成本。
@@ -62,6 +64,19 @@ go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config exa
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format comment
 go run ./cmd/oss-maintainer-kit ai-review --diff examples/pr.diff --config examples/review-rules.json --prompt-only
 go run ./cmd/oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json
+go run ./cmd/oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --repo-url https://github.com/<your-account>/oss-maintainer-kit
+```
+
+### 生成申请证据包
+
+```bash
+go run ./cmd/oss-maintainer-kit application-pack \
+  --issues examples/issues.json \
+  --pulls examples/pulls.json \
+  --root . \
+  --project oss-maintainer-kit \
+  --repo-url https://github.com/<your-account>/oss-maintainer-kit \
+  --output codex-oss-application.md
 ```
 
 ## 发布前检查清单
