@@ -41,6 +41,7 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 		"健康度评分：**84/100**",
 		"需要补齐的申请前事项",
 		"rtk go test ./...",
+		"sbom --root . --project oss-maintainer-kit",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Fatalf("missing %q:\n%s", want, doc)

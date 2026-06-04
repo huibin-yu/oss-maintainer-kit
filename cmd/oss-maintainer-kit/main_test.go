@@ -162,6 +162,36 @@ func TestRunReleaseCheckFailOnBlockedReturnsError(t *testing.T) {
 	}
 }
 
+func TestRunSBOMWritesSPDXJSON(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "go.mod", `module github.com/acme/demo
+
+go 1.21
+`)
+
+	outputPath := filepath.Join(root, "sbom.spdx.json")
+	err := run([]string{
+		"sbom",
+		"--root", root,
+		"--project", "demo",
+		"--namespace", "https://example.com/sbom/demo",
+		"--output", outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"spdxVersion": "SPDX-2.3"`) {
+		t.Fatalf("missing SPDX version: %s", data)
+	}
+	if !strings.Contains(string(data), `"name": "github.com/acme/demo"`) {
+		t.Fatalf("missing module package: %s", data)
+	}
+}
+
 func writeTestFile(t *testing.T, root, name, body string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))

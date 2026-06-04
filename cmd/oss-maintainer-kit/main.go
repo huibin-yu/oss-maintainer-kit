@@ -22,6 +22,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/sbom"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
 )
 
@@ -49,6 +50,8 @@ func run(args []string) error {
 		return runReport(args[1:])
 	case "health":
 		return runHealth(args[1:])
+	case "sbom":
+		return runSBOM(args[1:])
 	case "codex-plan":
 		return runCodexPlan(args[1:])
 	case "application-pack":
@@ -362,6 +365,35 @@ func runHealth(args []string) error {
 	return nil
 }
 
+func runSBOM(args []string) error {
+	fs := flag.NewFlagSet("sbom", flag.ContinueOnError)
+	root := fs.String("root", ".", "repository root")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	namespace := fs.String("namespace", "", "SPDX document namespace")
+	output := fs.String("output", "", "write SPDX JSON SBOM to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	doc, err := sbom.Build(sbom.Options{
+		Root:      *root,
+		Name:      *project,
+		Namespace: *namespace,
+	})
+	if err != nil {
+		return err
+	}
+	data, err := sbom.JSON(doc)
+	if err != nil {
+		return err
+	}
+	if *output == "" {
+		fmt.Print(string(data))
+		return nil
+	}
+	return os.WriteFile(*output, data, 0644)
+}
+
 func runCodexPlan(args []string) error {
 	fs := flag.NewFlagSet("codex-plan", flag.ContinueOnError)
 	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
@@ -475,6 +507,7 @@ Usage:
   oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .
+  oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json

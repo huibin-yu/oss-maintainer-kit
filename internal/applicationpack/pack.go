@@ -95,6 +95,7 @@ func Markdown(pack Pack) string {
 	fmt.Fprintf(&b, "rtk go test ./...\n")
 	fmt.Fprintf(&b, "rtk go build ./cmd/oss-maintainer-kit\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit health --root .\n")
+	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif\n")
 	fmt.Fprintf(&b, "```\n")
 	return b.String()

@@ -6,6 +6,7 @@
   "required_commands": [
     "rtk go test ./...",
     "rtk go build ./cmd/oss-maintainer-kit",
-    "rtk go run ./cmd/oss-maintainer-kit health --root ."
+    "rtk go run ./cmd/oss-maintainer-kit health --root .",
+    "rtk go run ./cmd/oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json"
   ]
 }
