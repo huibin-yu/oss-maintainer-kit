@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/ai"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/applicationpack"
@@ -16,6 +18,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/diffreview"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/github"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/healthtrend"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/input"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/prcomment"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/releasecheck"
@@ -50,6 +53,10 @@ func run(args []string) error {
 		return runReport(args[1:])
 	case "health":
 		return runHealth(args[1:])
+	case "health-snapshot":
+		return runHealthSnapshot(args[1:])
+	case "health-trend":
+		return runHealthTrend(args[1:])
 	case "sbom":
 		return runSBOM(args[1:])
 	case "codex-plan":
@@ -365,6 +372,63 @@ func runHealth(args []string) error {
 	return nil
 }
 
+func runHealthSnapshot(args []string) error {
+	fs := flag.NewFlagSet("health-snapshot", flag.ContinueOnError)
+	root := fs.String("root", ".", "repository root")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	history := fs.String("history", "health-history.jsonl", "append health snapshot to JSONL file")
+	ref := fs.String("ref", "", "git ref for this snapshot")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	gitRef := *ref
+	if gitRef == "" {
+		gitRef = currentGitRef(*root)
+	}
+	snapshot := healthtrend.NewSnapshot(*project, gitRef, health.Repository(*root), time.Now().UTC())
+	if err := healthtrend.Append(*history, snapshot); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+func runHealthTrend(args []string) error {
+	fs := flag.NewFlagSet("health-trend", flag.ContinueOnError)
+	history := fs.String("history", "health-history.jsonl", "read health snapshots from JSONL file")
+	format := fs.String("format", "markdown", "output format: markdown or json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	snapshots, err := healthtrend.Load(*history)
+	if err != nil {
+		return err
+	}
+	trend := healthtrend.Analyze(snapshots)
+	if *format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(trend)
+	}
+	fmt.Print(healthtrend.Markdown(trend))
+	return nil
+}
+
+func currentGitRef(root string) string {
+	cmd := exec.Command("git", "-C", root, "rev-parse", "--short", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func runSBOM(args []string) error {
 	fs := flag.NewFlagSet("sbom", flag.ContinueOnError)
 	root := fs.String("root", ".", "repository root")
@@ -507,6 +571,8 @@ Usage:
   oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .
+  oss-maintainer-kit health-snapshot --root . --history health-history.jsonl
+  oss-maintainer-kit health-trend --history health-history.jsonl
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md

@@ -11,6 +11,7 @@
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
+- `health-snapshot` / `health-trend`：把健康度评分追加为 JSONL 历史快照，并生成趋势报告。
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
@@ -96,6 +97,18 @@ go run ./cmd/oss-maintainer-kit report \
 
 ```bash
 go run ./cmd/oss-maintainer-kit health --root .
+```
+
+记录并查看健康度趋势：
+
+```bash
+go run ./cmd/oss-maintainer-kit health-snapshot \
+  --root . \
+  --project oss-maintainer-kit \
+  --history health-history.jsonl
+
+go run ./cmd/oss-maintainer-kit health-trend \
+  --history health-history.jsonl
 ```
 
 生成 SPDX SBOM：
@@ -269,6 +282,8 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
     "rtk go test ./...",
     "rtk go build ./cmd/oss-maintainer-kit",
     "rtk go run ./cmd/oss-maintainer-kit health --root .",
+    "rtk go run ./cmd/oss-maintainer-kit health-snapshot --root . --history health-history.jsonl",
+    "rtk go run ./cmd/oss-maintainer-kit health-trend --history health-history.jsonl",
     "rtk go run ./cmd/oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json"
   ]
 }
@@ -301,6 +316,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
 - health remediation：对缺失治理项输出可执行修复建议，减少申请前人工排查成本。
+- health trend：用 JSONL 快照记录健康度变化，沉淀长期维护证据。
 - application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
@@ -333,6 +349,7 @@ internal/report          报告与发布说明生成
 internal/releasecheck    发布准备检查
 internal/github          GitHub REST API 数据导出
 internal/health          开源仓库健康度检查
+internal/healthtrend     仓库健康度趋势报告
 internal/sbom            SPDX SBOM 生成
 internal/codexplan       Codex 使用计划生成
 internal/applicationpack  Codex for OSS 申请证据包生成

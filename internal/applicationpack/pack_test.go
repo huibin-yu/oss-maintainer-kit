@@ -42,6 +42,7 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 		"需要补齐的申请前事项",
 		"建议：添加 CI workflow。",
 		"rtk go test ./...",
+		"health-trend --history health-history.jsonl",
 		"sbom --root . --project oss-maintainer-kit",
 	} {
 		if !strings.Contains(doc, want) {

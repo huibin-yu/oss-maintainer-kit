@@ -192,6 +192,43 @@ go 1.21
 	}
 }
 
+func TestRunHealthSnapshotAndTrend(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalHealthyRepo(t, root)
+	historyPath := filepath.Join(root, "health-history.jsonl")
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"health-snapshot",
+			"--root", root,
+			"--project", "demo",
+			"--ref", "abc123",
+			"--history", historyPath,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(output, `"score": 100`) {
+		t.Fatalf("missing snapshot score: %s", output)
+	}
+
+	trend := captureStdout(t, func() {
+		err := run([]string{
+			"health-trend",
+			"--history", historyPath,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, want := range []string{"仓库健康度趋势报告", "项目：demo", "`abc123`"} {
+		if !strings.Contains(trend, want) {
+			t.Fatalf("missing %q:\n%s", want, trend)
+		}
+	}
+}
+
 func writeTestFile(t *testing.T, root, name, body string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))
@@ -200,6 +237,32 @@ func writeTestFile(t *testing.T, root, name, body string) {
 	}
 	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func writeMinimalHealthyRepo(t *testing.T, root string) {
+	t.Helper()
+	files := map[string]string{
+		"README.md":                                 "说明项目用途",
+		"LICENSE":                                   "MIT",
+		"SECURITY.md":                               "security@example.com",
+		"CONTRIBUTING.md":                           "go test ./...",
+		"CODE_OF_CONDUCT.md":                        "行为准则",
+		".github/workflows/ci.yml":                  "permissions:\n  contents: read\nsteps:\n  - run: go test ./...\n  - run: go build ./cmd/oss-maintainer-kit\n",
+		".github/workflows/codeql.yml":              "github/codeql-action/init",
+		".github/workflows/govulncheck.yml":         "permissions:\n  contents: read\nsteps:\n  - uses: golang/govulncheck-action@v1\n    with:\n      go-version-input: \"1.21\"\n      go-package: ./...\n",
+		".github/workflows/scorecard.yml":           "permissions:\n  contents: read\n  security-events: write\n  id-token: write\nsteps:\n  - uses: ossf/scorecard-action@v2\n    with:\n      results_format: sarif\n      publish_results: true\n  - uses: github/codeql-action/upload-sarif@v3\n",
+		".github/workflows/review-diff.yml":         "permissions:\n  contents: read\n  security-events: write\nsteps:\n  - uses: github/codeql-action/upload-sarif@v3\n",
+		".github/workflows/release-check.yml":       "permissions:\n  contents: read\n  issues: read\n  pull-requests: read\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind issues --output release-issues.json\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind pulls --output release-pulls.json\n  - run: go run ./cmd/oss-maintainer-kit release-check --issues release-issues.json --pulls release-pulls.json --root . --policy examples/release-policy.json --fail-on-blocked\n",
+		".github/workflows/release-artifacts.yml":   "on:\n  push:\n    tags:\n      - \"v*\"\npermissions:\n  contents: read\n  attestations: write\n  id-token: write\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit sbom --output dist/sbom.spdx.json\n  - run: sha256sum * > checksums.sha256\n  - uses: actions/attest-build-provenance@v2\n    with:\n      subject-path: \"dist/*\"\n  - uses: actions/upload-artifact@v4\n",
+		".github/dependabot.yml":                    "package-ecosystem: \"gomod\"\npackage-ecosystem: \"github-actions\"\n",
+		".github/ISSUE_TEMPLATE/bug_report.md":      "bug",
+		".github/ISSUE_TEMPLATE/feature_request.md": "feature",
+		".github/PULL_REQUEST_TEMPLATE.md":          "测试\n风险",
+		"docs/ROADMAP.md":                           "路线图",
+	}
+	for file, body := range files {
+		writeTestFile(t, root, file, body)
 	}
 }
 
