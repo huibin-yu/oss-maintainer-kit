@@ -7,6 +7,8 @@ import (
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/releasecheck"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/securityreport"
 )
 
 func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
@@ -28,6 +30,18 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 				{Name: "CI workflow", Passed: false, Path: ".github/workflows/ci.yml", Message: "缺失：提供自动测试和构建", Recommendation: "添加 CI workflow。"},
 			},
 		},
+		Release: releasecheck.Result{
+			Project:  "oss-maintainer-kit",
+			Version:  "v0.1.0",
+			Ready:    false,
+			Blockers: []string{"安全相关 issue 未处理：1 个"},
+		},
+		Security: securityreport.Report{
+			Project:            "oss-maintainer-kit",
+			Blocked:            true,
+			Blockers:           []string{"存在 1 个 open 安全 issue"},
+			OpenSecurityIssues: 1,
+		},
 	}))
 
 	for _, want := range []string{
@@ -41,9 +55,16 @@ func TestMarkdownIncludesApplicationEvidence(t *testing.T) {
 		"健康度评分：**84/100**",
 		"需要补齐的申请前事项",
 		"建议：添加 CI workflow。",
+		"发布与安全门禁证据",
+		"Release readiness | BLOCKED",
+		"Security readiness | BLOCKED",
+		"发布阻塞项",
+		"安全阻塞项",
 		"rtk go test ./...",
 		"health-trend --history health-history.jsonl",
 		"sbom --root . --project oss-maintainer-kit",
+		"security-report --issues examples/issues.json",
+		"release-check --issues examples/issues.json",
 	} {
 		if !strings.Contains(doc, want) {
 			t.Fatalf("missing %q:\n%s", want, doc)

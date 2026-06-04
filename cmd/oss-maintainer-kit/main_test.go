@@ -294,6 +294,46 @@ func TestRunSecurityReportFailOnRiskReturnsError(t *testing.T) {
 	}
 }
 
+func TestRunApplicationPackIncludesReadinessEvidence(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalHealthyRepo(t, root)
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pulls.json", `[]`)
+	writeTestFile(t, root, "policy.json", `{
+		"min_health_score": 100,
+		"block_security_issues": true,
+		"block_stale_issues": false
+	}`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"application-pack",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--pulls", filepath.Join(root, "pulls.json"),
+			"--root", root,
+			"--project", "demo",
+			"--policy", filepath.Join(root, "policy.json"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	for _, want := range []string{
+		"发布与安全门禁证据",
+		"Release readiness | BLOCKED",
+		"Security readiness | BLOCKED",
+		"安全相关 issue 未处理",
+		"存在 1 个 open 安全 issue",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestRunSBOMWritesSPDXJSON(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "go.mod", `module github.com/acme/demo

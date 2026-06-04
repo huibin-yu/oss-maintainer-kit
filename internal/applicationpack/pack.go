@@ -7,7 +7,9 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/codexplan"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/releasecheck"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/securityreport"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
 )
 
@@ -17,6 +19,8 @@ type Input struct {
 	Issues     []model.Issue
 	Pulls      []model.PullRequest
 	Health     health.Summary
+	Release    releasecheck.Result
+	Security   securityreport.Report
 }
 
 type Pack struct {
@@ -25,6 +29,8 @@ type Pack struct {
 	Summary    model.MaintainerReport
 	Plan       codexplan.Plan
 	Health     health.Summary
+	Release    releasecheck.Result
+	Security   securityreport.Report
 }
 
 func Build(input Input) Pack {
@@ -35,6 +41,8 @@ func Build(input Input) Pack {
 		Summary:    summary,
 		Plan:       codexplan.Build(input.Project, input.Repository, summary),
 		Health:     input.Health,
+		Release:    input.Release,
+		Security:   input.Security,
 	}
 }
 
@@ -93,6 +101,40 @@ func Markdown(pack Pack) string {
 		}
 	}
 
+	fmt.Fprintf(&b, "\n## 发布与安全门禁证据\n\n")
+	releaseStatus := "UNKNOWN"
+	if pack.Release.Project != "" {
+		releaseStatus = "READY"
+		if !pack.Release.Ready {
+			releaseStatus = "BLOCKED"
+		}
+	}
+	securityStatus := "UNKNOWN"
+	if pack.Security.Project != "" {
+		securityStatus = "PASS"
+		if pack.Security.Blocked {
+			securityStatus = "BLOCKED"
+		}
+	}
+	fmt.Fprintf(&b, "| 门禁 | 状态 | 证据 |\n| --- | --- | --- |\n")
+	fmt.Fprintf(&b, "| Release readiness | %s | health=%d/100, blockers=%d |\n", releaseStatus, pack.Health.Score, len(pack.Release.Blockers))
+	fmt.Fprintf(&b, "| Security readiness | %s | open_security_issues=%d, critical_findings=%d, high_findings=%d |\n\n", securityStatus, pack.Security.OpenSecurityIssues, pack.Security.CriticalFindings, pack.Security.HighFindings)
+
+	if len(pack.Release.Blockers) > 0 {
+		fmt.Fprintf(&b, "### 发布阻塞项\n\n")
+		for _, blocker := range pack.Release.Blockers {
+			fmt.Fprintf(&b, "- %s\n", blocker)
+		}
+		fmt.Fprintln(&b)
+	}
+	if len(pack.Security.Blockers) > 0 {
+		fmt.Fprintf(&b, "### 安全阻塞项\n\n")
+		for _, blocker := range pack.Security.Blockers {
+			fmt.Fprintf(&b, "- %s\n", blocker)
+		}
+		fmt.Fprintln(&b)
+	}
+
 	fmt.Fprintf(&b, "\n## 可执行验证命令\n\n")
 	fmt.Fprintf(&b, "```bash\n")
 	fmt.Fprintf(&b, "rtk go test ./...\n")
@@ -102,6 +144,8 @@ func Markdown(pack Pack) string {
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit health-trend --history health-history.jsonl\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif\n")
+	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit security-report --issues examples/issues.json --diff examples/pr.diff --root . --project %s\n", pack.Project)
+	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --project %s --version v0.1.0 --policy examples/release-policy.json\n", pack.Project)
 	fmt.Fprintf(&b, "```\n")
 	return b.String()
 }

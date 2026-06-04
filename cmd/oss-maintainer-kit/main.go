@@ -556,6 +556,8 @@ func runApplicationPack(args []string) error {
 	root := fs.String("root", ".", "repository root for health checks")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
 	repository := fs.String("repo-url", "", "public repository URL")
+	version := fs.String("version", "v0.1.0", "release version for readiness evidence")
+	policyPath := fs.String("policy", "examples/release-policy.json", "release policy JSON file for readiness evidence")
 	output := fs.String("output", "", "write markdown application pack to file")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -569,12 +571,31 @@ func runApplicationPack(args []string) error {
 	if err != nil {
 		return err
 	}
+	repositoryHealth := health.Repository(*root)
+	policy, err := releasecheck.LoadPolicy(*policyPath)
+	if err != nil {
+		return err
+	}
+	release := releasecheck.BuildWithPolicy(releasecheck.Input{
+		Project: *project,
+		Version: *version,
+		Issues:  issues,
+		Pulls:   pulls,
+		Health:  repositoryHealth,
+	}, policy)
+	security := securityreport.Build(securityreport.Input{
+		Project: *project,
+		Issues:  issues,
+		Health:  repositoryHealth,
+	})
 	doc := applicationpack.Markdown(applicationpack.Build(applicationpack.Input{
 		Project:    *project,
 		Repository: *repository,
 		Issues:     issues,
 		Pulls:      pulls,
-		Health:     health.Repository(*root),
+		Health:     repositoryHealth,
+		Release:    release,
+		Security:   security,
 	}))
 	if *output == "" {
 		fmt.Print(doc)
@@ -654,7 +675,7 @@ Usage:
   oss-maintainer-kit security-report --issues examples/issues.json [--diff examples/pr.diff] --root . [--fail-on-risk]
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
-  oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
+  oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . [--version v0.1.0] [--policy examples/release-policy.json] --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only

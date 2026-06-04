@@ -15,7 +15,7 @@
 - `security-report`：聚合安全 issue、PR diff 风险发现和仓库安全治理缺口，生成商用尽调可读的安全报告，并可用 `--fail-on-risk` 作为 CI 安全门禁。
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
-- `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
+- `application-pack`：聚合维护报告、健康度检查、release/security readiness 和 Codex 使用计划，生成 Codex for OSS 申请证据包。
 - `github-export`：从 GitHub REST API 分页导出 issues 或 PRs，支持状态和更新时间窗口过滤，便于接入真实仓库数据。
 - `review-diff`：离线扫描 PR diff 中的硬编码密钥、命令执行、明文 HTTP、禁用 TLS 等风险。
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
@@ -163,6 +163,8 @@ go run ./cmd/oss-maintainer-kit application-pack \
   --root . \
   --project oss-maintainer-kit \
   --repo-url https://github.com/<your-account>/oss-maintainer-kit \
+  --version v0.1.0 \
+  --policy examples/release-policy.json \
   --output codex-oss-application.md
 ```
 
@@ -347,7 +349,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
 - health remediation：对缺失治理项输出可执行修复建议，减少申请前人工排查成本。
 - health trend：用 JSONL 快照记录健康度变化，沉淀长期维护证据。
-- application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
+- application evidence：把维护指标、健康度、release/security readiness、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
 - release gate automation：通过 `.github/workflows/release-check.yml` 在 push 和 PR 上运行发布准备检查。
