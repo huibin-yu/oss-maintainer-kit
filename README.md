@@ -12,7 +12,7 @@
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
 - `health-snapshot` / `health-trend`：把健康度评分追加为 JSONL 历史快照，并生成趋势报告。
-- `security-report`：聚合安全 issue、PR diff 风险发现和仓库安全治理缺口，生成商用尽调可读的安全报告。
+- `security-report`：聚合安全 issue、PR diff 风险发现和仓库安全治理缺口，生成商用尽调可读的安全报告，并可用 `--fail-on-risk` 作为 CI 安全门禁。
 - `sbom`：从 `go.mod` 生成 SPDX 2.3 JSON SBOM，便于供应链审查和商用尽调。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
@@ -23,7 +23,7 @@
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
-- GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、release-check 发布门禁、tag 发布产物和 Dependabot 配置。
+- GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、security-report 安全门禁、release-check 发布门禁、tag 发布产物和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
 - 内置示例数据、单元测试和 GitHub Actions CI。
 
@@ -123,6 +123,17 @@ go run ./cmd/oss-maintainer-kit security-report \
   --output security-report.md
 ```
 
+在 CI 中启用安全门禁时，存在 open 安全 issue、critical/high diff finding 或安全治理缺口会返回非 0 状态：
+
+```bash
+go run ./cmd/oss-maintainer-kit security-report \
+  --issues security-issues.json \
+  --diff security-pr.diff \
+  --root . \
+  --project oss-maintainer-kit \
+  --fail-on-risk
+```
+
 生成 SPDX SBOM：
 
 ```bash
@@ -168,6 +179,8 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
 ```
 
 `.github/workflows/release-check.yml` 会在 PR 和 main 分支上使用 `github-export` 导出当前仓库 issues/PRs，再以 `--fail-on-blocked` 执行发布准备检查。
+
+`.github/workflows/security-report.yml` 会在 PR 和 main 分支上导出当前仓库 open issues，PR 场景下生成 diff，执行 `security-report --fail-on-risk`，并上传 Markdown/JSON 安全报告 artifact。
 
 `.github/workflows/release-artifacts.yml` 会在 `v*` tag 上构建 Linux、macOS、Windows CLI，生成 SPDX SBOM、SHA256 checksums，并用 GitHub artifact attestation 生成 provenance。
 
@@ -325,7 +338,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
-- Security report：聚合安全 issue、PR diff 风险发现和仓库治理缺口，为商用安全审查和发布前风险接受提供证据。
+- Security report：聚合安全 issue、PR diff 风险发现和仓库治理缺口，并通过 GitHub Actions 上传 Markdown/JSON artifact，为商用安全审查和发布前风险接受提供证据。
 - SBOM：输出 SPDX 2.3 JSON，为依赖审计、商用尽调和发布归档提供可机器读取证据。
 - Release artifacts：在版本 tag 上构建多平台 CLI，生成 SBOM、checksums 和 provenance attestation。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
@@ -338,7 +351,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
 - release gate automation：通过 `.github/workflows/release-check.yml` 在 push 和 PR 上运行发布准备检查。
-- supply-chain security：通过 `.github/workflows/govulncheck.yml`、`.github/workflows/scorecard.yml` 和 Dependabot 持续发现 Go 漏洞、依赖更新与开源安全治理短板。
+- supply-chain security：通过 `.github/workflows/govulncheck.yml`、`.github/workflows/scorecard.yml`、`.github/workflows/security-report.yml` 和 Dependabot 持续发现 Go 漏洞、依赖更新、PR diff 风险与开源安全治理短板。
 - commercial readiness：通过 SBOM、发布门禁、发布产物 provenance、健康度报告和申请证据包沉淀可复验材料。
 
 ## 开发方式

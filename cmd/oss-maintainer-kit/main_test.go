@@ -267,6 +267,33 @@ func TestRunSecurityReportWritesMarkdown(t *testing.T) {
 	}
 }
 
+func TestRunSecurityReportFailOnRiskReturnsError(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"security-report",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--root", root,
+			"--project", "demo",
+			"--fail-on-risk",
+		})
+		if err == nil {
+			t.Fatal("expected security report risk error")
+		}
+		if !strings.Contains(err.Error(), "security report blocked by risk") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "安全门禁阻塞") {
+		t.Fatalf("missing security gate report: %s", output)
+	}
+}
+
 func TestRunSBOMWritesSPDXJSON(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "go.mod", `module github.com/acme/demo
@@ -358,6 +385,7 @@ func writeMinimalHealthyRepo(t *testing.T, root string) {
 		".github/workflows/govulncheck.yml":         "permissions:\n  contents: read\nsteps:\n  - uses: golang/govulncheck-action@v1\n    with:\n      go-version-input: \"1.21\"\n      go-package: ./...\n",
 		".github/workflows/scorecard.yml":           "permissions:\n  contents: read\n  security-events: write\n  id-token: write\nsteps:\n  - uses: ossf/scorecard-action@v2\n    with:\n      results_format: sarif\n      publish_results: true\n  - uses: github/codeql-action/upload-sarif@v3\n",
 		".github/workflows/review-diff.yml":         "permissions:\n  contents: read\n  security-events: write\nsteps:\n  - uses: github/codeql-action/upload-sarif@v3\n",
+		".github/workflows/security-report.yml":     "permissions:\n  contents: read\n  issues: read\n  pull-requests: read\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind issues --state open --output security-issues.json\n  - run: git diff origin/main HEAD > security-pr.diff\n  - run: go run ./cmd/oss-maintainer-kit security-report --issues security-issues.json --diff security-pr.diff --root . --fail-on-risk\n  - uses: actions/upload-artifact@v4\n    with:\n      path: |\n        security-report.md\n        security-report.json\n",
 		".github/workflows/release-check.yml":       "permissions:\n  contents: read\n  issues: read\n  pull-requests: read\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind issues --output release-issues.json\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind pulls --output release-pulls.json\n  - run: go run ./cmd/oss-maintainer-kit release-check --issues release-issues.json --pulls release-pulls.json --root . --policy examples/release-policy.json --fail-on-blocked\n",
 		".github/workflows/release-artifacts.yml":   "on:\n  push:\n    tags:\n      - \"v*\"\npermissions:\n  contents: read\n  attestations: write\n  id-token: write\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit sbom --output dist/sbom.spdx.json\n  - run: sha256sum * > checksums.sha256\n  - uses: actions/attest-build-provenance@v2\n    with:\n      subject-path: \"dist/*\"\n  - uses: actions/upload-artifact@v4\n",
 		".github/dependabot.yml":                    "package-ecosystem: \"gomod\"\npackage-ecosystem: \"github-actions\"\n",

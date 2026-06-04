@@ -43,6 +43,12 @@ func TestBuildAggregatesSecuritySignals(t *testing.T) {
 	if report.OpenSecurityIssues != 1 {
 		t.Fatalf("open security issues = %d", report.OpenSecurityIssues)
 	}
+	if !report.Blocked {
+		t.Fatal("expected report to be blocked")
+	}
+	if len(report.Blockers) != 4 {
+		t.Fatalf("blockers = %#v", report.Blockers)
+	}
 	if report.CriticalFindings != 1 || report.HighFindings != 1 {
 		t.Fatalf("finding counts critical=%d high=%d", report.CriticalFindings, report.HighFindings)
 	}
@@ -58,6 +64,9 @@ func TestBuildUsesEmptySlicesForMachineReadableJSON(t *testing.T) {
 	report := Build(Input{Project: "demo"})
 	if report.IssueFindings == nil {
 		t.Fatal("issue findings should be an empty slice")
+	}
+	if report.Blockers == nil {
+		t.Fatal("blockers should be an empty slice")
 	}
 	if report.DiffFindings == nil {
 		t.Fatal("diff findings should be an empty slice")
@@ -92,6 +101,7 @@ func TestMarkdownIncludesActionableSections(t *testing.T) {
 	for _, want := range []string{
 		"# demo 安全报告",
 		"## 安全摘要",
+		"## 阻塞项",
 		"security token leak",
 		"possible-secret",
 		"CodeQL workflow",

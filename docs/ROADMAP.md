@@ -19,7 +19,7 @@
 - 支持仓库健康度趋势报告，使用 JSONL 快照记录评分变化。
 - 支持可配置发布准备检查，结合 issues、PRs、仓库健康度和发布策略输出 READY/BLOCKED、阻塞项和发布前命令。
 - 支持 release-check GitHub Actions workflow，在 PR 和 main 分支上导出当前仓库真实数据，并在发布被策略阻塞时失败。
-- 支持安全专项报告，聚合安全 issue、PR diff 风险发现和仓库治理缺口。
+- 支持安全专项报告和 GitHub Actions 门禁，聚合安全 issue、PR diff 风险发现和仓库治理缺口，并上传 Markdown/JSON 报告证据。
 
 ## v0.2
 

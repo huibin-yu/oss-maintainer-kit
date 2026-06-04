@@ -1,0 +1,67 @@
+name: security-report
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  security-report:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Export open repository issues
+        run: |
+          go run ./cmd/oss-maintainer-kit github-export \
+            --repo "${{ github.repository }}" \
+            --kind issues \
+            --state open \
+            --output security-issues.json
+      - name: Export pull request diff
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --unified=0 \
+            "origin/${{ github.base_ref }}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            > security-pr.diff
+      - name: Create empty diff for push
+        if: github.event_name != 'pull_request'
+        run: touch security-pr.diff
+      - name: Generate security report
+        run: |
+          go run ./cmd/oss-maintainer-kit security-report \
+            --issues security-issues.json \
+            --diff security-pr.diff \
+            --root . \
+            --project oss-maintainer-kit \
+            --output security-report.md \
+            --fail-on-risk
+      - name: Generate security report JSON
+        if: always()
+        run: |
+          go run ./cmd/oss-maintainer-kit security-report \
+            --issues security-issues.json \
+            --diff security-pr.diff \
+            --root . \
+            --project oss-maintainer-kit \
+            --format json \
+            --output security-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: |
+            security-report.md
+            security-report.json

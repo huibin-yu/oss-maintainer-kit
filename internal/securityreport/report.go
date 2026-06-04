@@ -20,6 +20,8 @@ type Input struct {
 
 type Report struct {
 	Project              string               `json:"project"`
+	Blocked              bool                 `json:"blocked"`
+	Blockers             []string             `json:"blockers"`
 	OpenSecurityIssues   int                  `json:"open_security_issues"`
 	CriticalFindings     int                  `json:"critical_findings"`
 	HighFindings         int                  `json:"high_findings"`
@@ -49,9 +51,14 @@ func Build(input Input) Report {
 		IssueFindings:        issueFindings,
 		DiffFindings:         diffFindings,
 	}
+	report.Blockers = blockers(report)
+	report.Blocked = len(report.Blockers) > 0
 	report.Recommendations = recommendations(report)
 	if report.FailedSecurityChecks == nil {
 		report.FailedSecurityChecks = []health.Check{}
+	}
+	if report.Blockers == nil {
+		report.Blockers = []string{}
 	}
 	if report.Recommendations == nil {
 		report.Recommendations = []string{}
@@ -64,10 +71,21 @@ func Markdown(report Report) string {
 	fmt.Fprintf(&b, "# %s 安全报告\n\n", report.Project)
 	fmt.Fprintf(&b, "## 安全摘要\n\n")
 	fmt.Fprintf(&b, "| 指标 | 数量 |\n| --- | ---: |\n")
+	fmt.Fprintf(&b, "| 安全门禁阻塞 | %t |\n", report.Blocked)
 	fmt.Fprintf(&b, "| Open 安全 Issues | %d |\n", report.OpenSecurityIssues)
 	fmt.Fprintf(&b, "| Critical Diff Findings | %d |\n", report.CriticalFindings)
 	fmt.Fprintf(&b, "| High Diff Findings | %d |\n", report.HighFindings)
 	fmt.Fprintf(&b, "| 仓库治理评分 | %d/100 |\n\n", report.GovernanceScore)
+
+	fmt.Fprintf(&b, "## 阻塞项\n\n")
+	if len(report.Blockers) == 0 {
+		fmt.Fprintf(&b, "未发现阻塞安全门禁的风险。\n\n")
+	} else {
+		for _, blocker := range report.Blockers {
+			fmt.Fprintf(&b, "- %s\n", blocker)
+		}
+		fmt.Fprintln(&b)
+	}
 
 	fmt.Fprintf(&b, "## 安全 Issues\n\n")
 	if len(report.IssueFindings) == 0 {
@@ -161,6 +179,23 @@ func failedSecurityChecks(checks []health.Check) []health.Check {
 		}
 	}
 	return failed
+}
+
+func blockers(report Report) []string {
+	var items []string
+	if report.OpenSecurityIssues > 0 {
+		items = append(items, fmt.Sprintf("存在 %d 个 open 安全 issue", report.OpenSecurityIssues))
+	}
+	if report.CriticalFindings > 0 {
+		items = append(items, fmt.Sprintf("存在 %d 个 critical diff finding", report.CriticalFindings))
+	}
+	if report.HighFindings > 0 {
+		items = append(items, fmt.Sprintf("存在 %d 个 high diff finding", report.HighFindings))
+	}
+	if len(report.FailedSecurityChecks) > 0 {
+		items = append(items, fmt.Sprintf("存在 %d 个安全治理检查失败项", len(report.FailedSecurityChecks)))
+	}
+	return items
 }
 
 func recommendations(report Report) []string {

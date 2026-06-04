@@ -432,6 +432,7 @@ func runSecurityReport(args []string) error {
 	project := fs.String("project", "oss-maintainer-kit", "project name")
 	format := fs.String("format", "markdown", "output format: markdown or json")
 	output := fs.String("output", "", "write security report to file")
+	failOnRisk := fs.Bool("fail-on-risk", false, "exit with non-zero status when security report has blockers")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -473,9 +474,13 @@ func runSecurityReport(args []string) error {
 	}
 	if *output == "" {
 		fmt.Print(string(content))
-		return nil
+	} else if err := os.WriteFile(*output, content, 0644); err != nil {
+		return err
 	}
-	return os.WriteFile(*output, content, 0644)
+	if *failOnRisk && report.Blocked {
+		return fmt.Errorf("security report blocked by risk: %d blocker(s)", len(report.Blockers))
+	}
+	return nil
 }
 
 func currentGitRef(root string) string {
@@ -646,7 +651,7 @@ Usage:
   oss-maintainer-kit health --root .
   oss-maintainer-kit health-snapshot --root . --history health-history.jsonl
   oss-maintainer-kit health-trend --history health-history.jsonl
-  oss-maintainer-kit security-report --issues examples/issues.json [--diff examples/pr.diff] --root .
+  oss-maintainer-kit security-report --issues examples/issues.json [--diff examples/pr.diff] --root . [--fail-on-risk]
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
