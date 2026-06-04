@@ -3,6 +3,8 @@ package diffreview
 import (
 	"strings"
 	"testing"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 )
 
 func TestReviewFindsRiskyAddedLines(t *testing.T) {
@@ -31,5 +33,29 @@ func TestMarkdownHandlesNoFindings(t *testing.T) {
 	doc := Markdown(nil)
 	if !strings.Contains(doc, "未发现") {
 		t.Fatalf("unexpected markdown:\n%s", doc)
+	}
+}
+
+func TestReviewWithConfigFindsCustomRule(t *testing.T) {
+	diff := `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,1 +1,2 @@
+ package main
++dangerousCall()
+`
+	findings, err := ReviewWithConfig(strings.NewReader(diff), reviewconfig.Config{
+		Rules: []reviewconfig.Rule{{
+			ID:       "custom-danger",
+			Severity: "high",
+			Contains: []string{"dangerousCall"},
+			Message:  "custom danger",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 || findings[0].Rule != "custom-danger" {
+		t.Fatalf("unexpected findings: %#v", findings)
 	}
 }

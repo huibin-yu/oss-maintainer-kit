@@ -14,6 +14,8 @@
 - `github-export`：从 GitHub REST API 导出 issues 或 PRs，便于接入真实仓库数据。
 - `review-diff`：离线扫描 PR diff 中的硬编码密钥、命令执行、明文 HTTP、禁用 TLS 等风险。
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
+- `review-diff --config`：加载仓库自定义 JSON 规则。
+- `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
 - GitHub Actions：内置 CI、CodeQL、PR diff SARIF 扫描和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
@@ -93,12 +95,29 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff
 ```
 
+使用自定义规则：
+
+```bash
+go run ./cmd/oss-maintainer-kit review-diff \
+  --diff examples/pr.diff \
+  --config examples/review-rules.json
+```
+
 输出 SARIF：
 
 ```bash
 go run ./cmd/oss-maintainer-kit review-diff \
   --diff examples/pr.diff \
   --format sarif
+```
+
+生成 PR 评论：
+
+```bash
+go run ./cmd/oss-maintainer-kit review-diff \
+  --diff examples/pr.diff \
+  --config examples/review-rules.json \
+  --format comment
 ```
 
 生成 Codex review prompt：
@@ -158,12 +177,30 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 ]
 ```
 
+`examples/review-rules.json`：
+
+```json
+{
+  "rules": [
+    {
+      "id": "missing-timeout",
+      "severity": "medium",
+      "contains": ["http.Get(", "http.Post("],
+      "message": "新增 HTTP 调用需要确认 timeout、错误处理和上下文取消",
+      "tags": ["reliability", "network"]
+    }
+  ]
+}
+```
+
 ## 适合 Codex 辅助的维护场景
 
 这个项目刻意选择了开源维护者高频、可验证的工作流：
 
 - PR review：对规则变更、输出格式、边界条件和测试覆盖进行审查。
 - AI-assisted review：把本地 diff 风险扫描结果和 PR diff 组合成可审查的 Codex prompt。
+- Repository-specific rules：通过 JSON 配置给不同仓库定制 review 规则。
+- PR comments：生成带稳定标记的 Markdown 评论，便于后续 GitHub Bot 更新评论。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
 - release workflow：根据合并 PR 自动生成发布说明草稿。
@@ -199,6 +236,8 @@ internal/health          开源仓库健康度检查
 internal/codexplan       Codex 使用计划生成
 internal/diffreview      PR diff 风险扫描
 internal/sarif           SARIF 2.1.0 输出
+internal/reviewconfig    自定义 review 规则配置
+internal/prcomment       PR 评论格式生成
 internal/ai              OpenAI-compatible review client
 examples                 示例数据
 docs                     申请与路线图材料

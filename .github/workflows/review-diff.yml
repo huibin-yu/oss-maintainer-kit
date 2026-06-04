@@ -20,7 +20,9 @@ jobs:
       - name: Generate pull request diff
         run: git diff origin/${{ github.base_ref }}...HEAD > pr.diff
       - name: Build SARIF report
-        run: go run ./cmd/oss-maintainer-kit review-diff --diff pr.diff --format sarif > oss-maintainer-kit.sarif
+        run: go run ./cmd/oss-maintainer-kit review-diff --diff pr.diff --config examples/review-rules.json --format sarif > oss-maintainer-kit.sarif
+      - name: Build markdown comment
+        run: go run ./cmd/oss-maintainer-kit review-diff --diff pr.diff --config examples/review-rules.json --format comment > review-comment.md
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:

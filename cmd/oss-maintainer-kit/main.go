@@ -16,7 +16,9 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/github"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/input"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/prcomment"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
 )
@@ -131,7 +133,8 @@ func runReport(args []string) error {
 func runReviewDiff(args []string) error {
 	fs := flag.NewFlagSet("review-diff", flag.ContinueOnError)
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
-	format := fs.String("format", "markdown", "output format: markdown, json, or sarif")
+	configPath := fs.String("config", "", "optional JSON review rules config")
+	format := fs.String("format", "markdown", "output format: markdown, json, sarif, or comment")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -140,7 +143,11 @@ func runReviewDiff(args []string) error {
 	if err != nil {
 		return err
 	}
-	findings, err := diffreview.Review(strings.NewReader(diff))
+	cfg, err := loadReviewConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
 	if err != nil {
 		return err
 	}
@@ -154,6 +161,10 @@ func runReviewDiff(args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(sarif.FromFindings(findings))
 	}
+	if *format == "comment" {
+		fmt.Print(prcomment.Markdown(findings))
+		return nil
+	}
 	fmt.Print(diffreview.Markdown(findings))
 	return nil
 }
@@ -161,6 +172,7 @@ func runReviewDiff(args []string) error {
 func runAIReview(args []string) error {
 	fs := flag.NewFlagSet("ai-review", flag.ContinueOnError)
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	configPath := fs.String("config", "", "optional JSON review rules config")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
 	baseURL := fs.String("base-url", "https://api.openai.com/v1", "OpenAI-compatible API base URL")
 	model := fs.String("model", "gpt-4.1-mini", "review model")
@@ -175,7 +187,11 @@ func runAIReview(args []string) error {
 	if err != nil {
 		return err
 	}
-	findings, err := diffreview.Review(strings.NewReader(diff))
+	cfg, err := loadReviewConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
 	if err != nil {
 		return err
 	}
@@ -202,6 +218,13 @@ func runAIReview(args []string) error {
 		return nil
 	}
 	return os.WriteFile(*output, []byte(content), 0644)
+}
+
+func loadReviewConfig(path string) (reviewconfig.Config, error) {
+	if path == "" {
+		return reviewconfig.Config{}, nil
+	}
+	return reviewconfig.Load(path)
 }
 
 func readAll(path string) (string, error) {
@@ -316,6 +339,6 @@ Usage:
   oss-maintainer-kit health --root .
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json
-  oss-maintainer-kit review-diff --diff examples/pr.diff [--format markdown|json|sarif]
+  oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only`)
 }

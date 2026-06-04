@@ -6,6 +6,8 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 )
 
 type Finding struct {
@@ -18,6 +20,10 @@ type Finding struct {
 }
 
 func Review(r io.Reader) ([]Finding, error) {
+	return ReviewWithConfig(r, reviewconfig.Config{})
+}
+
+func ReviewWithConfig(r io.Reader, cfg reviewconfig.Config) ([]Finding, error) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
 
@@ -34,6 +40,7 @@ func Review(r io.Reader) ([]Finding, error) {
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
 			added := strings.TrimPrefix(line, "+")
 			findings = append(findings, inspect(file, newLine, added)...)
+			findings = append(findings, inspectConfigured(file, newLine, added, cfg)...)
 			newLine++
 		case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
 			continue
@@ -99,6 +106,30 @@ func inspect(file string, line int, code string) []Finding {
 	}
 	if strings.Contains(text, "todo") || strings.Contains(text, "fixme") {
 		add("low", "unfinished-work", "新增代码包含未完成标记")
+	}
+	return findings
+}
+
+func inspectConfigured(file string, line int, code string, cfg reviewconfig.Config) []Finding {
+	text := strings.ToLower(code)
+	var findings []Finding
+	for _, rule := range cfg.Rules {
+		if !rule.IsEnabled() {
+			continue
+		}
+		for _, needle := range rule.Contains {
+			if strings.Contains(text, strings.ToLower(needle)) {
+				findings = append(findings, Finding{
+					File:     file,
+					Line:     line,
+					Severity: rule.Severity,
+					Rule:     rule.ID,
+					Message:  rule.Message,
+					Snippet:  strings.TrimSpace(code),
+				})
+				break
+			}
+		}
 	}
 	return findings
 }

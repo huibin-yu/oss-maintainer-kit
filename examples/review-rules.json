@@ -1,0 +1,18 @@
+{
+  "rules": [
+    {
+      "id": "missing-timeout",
+      "severity": "medium",
+      "contains": ["http.Get(", "http.Post("],
+      "message": "新增 HTTP 调用需要确认 timeout、错误处理和上下文取消",
+      "tags": ["reliability", "network"]
+    },
+    {
+      "id": "demo-placeholder",
+      "severity": "low",
+      "contains": ["demo-", "example.com"],
+      "message": "新增代码包含示例占位内容，需要确认是否应进入生产代码",
+      "tags": ["maintainability"]
+    }
+  ]
+}

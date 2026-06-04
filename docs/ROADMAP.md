@@ -8,13 +8,14 @@
 - 提供仓库健康度检查和 Codex for OSS 使用计划生成。
 - 提供 PR diff 风险扫描和 OpenAI-compatible review prompt 生成。
 - 支持 SARIF 2.1.0 输出、CodeQL、Dependabot 和 PR diff 扫描 workflow。
+- 支持 JSON 自定义 review 规则和 GitHub PR 评论格式输出。
 
 ## v0.2
 
 - 完善 GitHub REST API 输入。
 - 增加分页、时间范围过滤和 GraphQL 支持。
 - 输出更细粒度的维护优先级解释。
-- 支持把 `review-diff` 结果输出为 GitHub Markdown comment。
+- 支持通过 GitHub API 自动创建或更新 PR review comment。
 - 增加 OSSF Scorecard 风格的仓库治理检查项。
 
 ## v0.3
