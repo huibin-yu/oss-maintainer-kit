@@ -6,7 +6,7 @@
 
 `oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
 
-当前版本还支持 GitHub REST API 数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、可配置发布准备检查、release-check GitHub Actions 门禁、开源仓库健康度检查、CI/Dependabot/PR 模板内容质量检查、CodeQL、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
+当前版本还支持 GitHub REST API 数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、可配置发布准备检查、release-check GitHub Actions 门禁、开源仓库健康度检查、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
 新增的 `application-pack` 命令会把维护报告、仓库健康度、Codex 使用计划、API credits 用途和可执行验证命令聚合成一份申请证据包，便于在公开仓库中展示项目与 Codex for OSS 试用目标的匹配度。
 
@@ -21,8 +21,9 @@
 - 生成稳定 Markdown PR 评论，便于后续接入 GitHub Bot 自动更新。
 - 通过稳定 marker 创建或更新 GitHub PR 评论，避免 Bot 重复刷评论。
 - 输出 SARIF，便于把风险扫描接入 GitHub Code Scanning。
+- 通过 govulncheck 在 PR、main 和定时任务中扫描 Go 漏洞，增强供应链安全证据。
 - 提供可离线运行、可审查、可测试的规则引擎。
-- 提供仓库治理检查，帮助维护者补齐 README、License、Security、CI、Issue/PR 模板、路线图和关键 workflow 内容质量。
+- 提供仓库治理检查，帮助维护者补齐 README、License、Security、CI、govulncheck、Issue/PR 模板、路线图和关键 workflow 内容质量。
 - 后续可作为 Codex 辅助开源维护的示例项目。
 
 ## 申请表可填写内容
@@ -44,7 +45,7 @@ Owner / Maintainer
 ### Project description
 
 ```text
-oss-maintainer-kit is a Go CLI that helps open-source maintainers export GitHub issues and pull requests, triage issues, scan pull request diffs with repository-specific rules, emit SARIF for GitHub Code Scanning, generate PR comments and Codex-ready review prompts, produce release notes, check repository health, and build maintainer workflow plans.
+oss-maintainer-kit is a Go CLI that helps open-source maintainers export GitHub issues and pull requests, triage issues, scan pull request diffs with repository-specific rules, emit SARIF for GitHub Code Scanning, run Go vulnerability checks, generate PR comments and Codex-ready review prompts, produce release notes, check repository health, and build maintainer workflow plans.
 ```
 
 ### How you plan to use Codex

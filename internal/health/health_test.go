@@ -16,6 +16,7 @@ func TestRepositoryScoresRequiredFiles(t *testing.T) {
 		"CODE_OF_CONDUCT.md":                        "行为准则",
 		".github/workflows/ci.yml":                  "permissions:\n  contents: read\nsteps:\n  - run: go test ./...\n  - run: go build ./cmd/oss-maintainer-kit\n",
 		".github/workflows/codeql.yml":              "github/codeql-action/init",
+		".github/workflows/govulncheck.yml":         "permissions:\n  contents: read\nsteps:\n  - uses: golang/govulncheck-action@v1\n    with:\n      go-version-input: \"1.21\"\n      go-package: ./...\n",
 		".github/workflows/review-diff.yml":         "permissions:\n  contents: read\n  security-events: write\nsteps:\n  - uses: github/codeql-action/upload-sarif@v3\n",
 		".github/workflows/release-check.yml":       "permissions:\n  contents: read\n  issues: read\n  pull-requests: read\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind issues --output release-issues.json\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind pulls --output release-pulls.json\n  - run: go run ./cmd/oss-maintainer-kit release-check --issues release-issues.json --pulls release-pulls.json --root . --policy examples/release-policy.json --fail-on-blocked\n",
 		".github/dependabot.yml":                    "package-ecosystem: \"gomod\"\npackage-ecosystem: \"github-actions\"\n",
@@ -53,6 +54,7 @@ func TestRepositoryReportsMissingFiles(t *testing.T) {
 func TestRepositoryReportsContentQualityFailures(t *testing.T) {
 	root := t.TempDir()
 	writeHealthFile(t, root, ".github/workflows/ci.yml", "steps:\n  - run: go test ./...\n")
+	writeHealthFile(t, root, ".github/workflows/govulncheck.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/workflows/review-diff.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/workflows/release-check.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/dependabot.yml", "package-ecosystem: \"gomod\"\n")
@@ -62,6 +64,7 @@ func TestRepositoryReportsContentQualityFailures(t *testing.T) {
 	for _, name := range []string{
 		"CI least privilege",
 		"CI build command",
+		"govulncheck package coverage",
 		"Review diff SARIF upload",
 		"Release check least privilege",
 		"Release check live data export",
