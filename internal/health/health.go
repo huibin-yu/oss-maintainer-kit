@@ -34,6 +34,15 @@ func Repository(root string) Summary {
 		fileCheck(root, "Feature issue template", ".github/ISSUE_TEMPLATE/feature_request.md", "提供功能请求模板"),
 		fileCheck(root, "Pull request template", ".github/PULL_REQUEST_TEMPLATE.md", "提供 PR 说明模板"),
 		fileCheck(root, "Roadmap", "docs/ROADMAP.md", "提供后续维护路线图"),
+		contentCheck(root, "CI least privilege", ".github/workflows/ci.yml", []string{"permissions:", "contents: read"}, "CI workflow 使用最小只读权限"),
+		contentCheck(root, "CI test command", ".github/workflows/ci.yml", []string{"go test ./..."}, "CI workflow 执行 Go 测试"),
+		contentCheck(root, "CI build command", ".github/workflows/ci.yml", []string{"go build ./cmd/oss-maintainer-kit"}, "CI workflow 执行 CLI 构建"),
+		contentCheck(root, "Review diff SARIF upload", ".github/workflows/review-diff.yml", []string{"github/codeql-action/upload-sarif"}, "PR diff workflow 上传 SARIF 到 code scanning"),
+		contentCheck(root, "Review diff security permission", ".github/workflows/review-diff.yml", []string{"security-events: write"}, "PR diff workflow 具备 SARIF 上传权限"),
+		contentCheck(root, "Dependabot Go module updates", ".github/dependabot.yml", []string{"package-ecosystem: \"gomod\""}, "Dependabot 覆盖 Go module 更新"),
+		contentCheck(root, "Dependabot GitHub Actions updates", ".github/dependabot.yml", []string{"package-ecosystem: \"github-actions\""}, "Dependabot 覆盖 GitHub Actions 更新"),
+		contentCheck(root, "PR template test checklist", ".github/PULL_REQUEST_TEMPLATE.md", []string{"测试"}, "PR 模板提醒贡献者说明测试结果"),
+		contentCheck(root, "PR template risk checklist", ".github/PULL_REQUEST_TEMPLATE.md", []string{"风险"}, "PR 模板提醒贡献者说明风险和影响"),
 	}
 
 	passed := 0
@@ -75,6 +84,20 @@ func fileCheck(root, name, path, message string) Check {
 	}
 	if info.Size() == 0 {
 		return Check{Name: name, Passed: false, Path: path, Message: "文件为空"}
+	}
+	return Check{Name: name, Passed: true, Path: path, Message: message}
+}
+
+func contentCheck(root, name, path string, required []string, message string) Check {
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if err != nil {
+		return Check{Name: name, Passed: false, Path: path, Message: "无法读取：" + message}
+	}
+	text := strings.ToLower(string(data))
+	for _, item := range required {
+		if !strings.Contains(text, strings.ToLower(item)) {
+			return Check{Name: name, Passed: false, Path: path, Message: "缺少内容：" + item}
+		}
 	}
 	return Check{Name: name, Passed: true, Path: path, Message: message}
 }
