@@ -10,7 +10,7 @@
 - `release-notes`：从已合并 PR 生成发布说明草稿。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
-- `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量。
+- `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
 - `application-pack`：聚合维护报告、健康度检查和 Codex 使用计划，生成 Codex for OSS 申请证据包。
 - `github-export`：从 GitHub REST API 导出 issues 或 PRs，便于接入真实仓库数据。
@@ -20,7 +20,7 @@
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
-- GitHub Actions：内置 CI、CodeQL、govulncheck、PR diff SARIF 扫描、release-check 发布门禁和 Dependabot 配置。
+- GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、release-check 发布门禁和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
 - 内置示例数据、单元测试和 GitHub Actions CI。
 
@@ -280,6 +280,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
+- Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
 - release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
@@ -288,7 +289,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - dependency maintenance：使用 Dependabot 管理 Go module 和 GitHub Actions 更新。
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
 - release gate automation：通过 `.github/workflows/release-check.yml` 在 push 和 PR 上运行发布准备检查。
-- supply-chain security：通过 `.github/workflows/govulncheck.yml` 和 Dependabot 持续发现 Go 漏洞与依赖更新。
+- supply-chain security：通过 `.github/workflows/govulncheck.yml`、`.github/workflows/scorecard.yml` 和 Dependabot 持续发现 Go 漏洞、依赖更新与开源安全治理短板。
 
 ## 开发方式
 
