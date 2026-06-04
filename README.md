@@ -8,6 +8,7 @@
 
 - `triage`：根据标题、正文、标签和更新时间生成优先级与建议标签。
 - `release-notes`：从已合并 PR 生成发布说明草稿。
+- `release-check`：结合 issues、PRs 和仓库健康度生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量。
 - `codex-plan`：根据维护报告生成 Codex for OSS 使用计划。
@@ -53,6 +54,17 @@ go run ./cmd/oss-maintainer-kit triage --input examples/issues.json --format jso
 
 ```bash
 go run ./cmd/oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
+```
+
+检查发布准备状态：
+
+```bash
+go run ./cmd/oss-maintainer-kit release-check \
+  --issues examples/issues.json \
+  --pulls examples/pulls.json \
+  --root . \
+  --project oss-maintainer-kit \
+  --version v0.1.0
 ```
 
 生成维护报告：
@@ -228,7 +240,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
-- release workflow：根据合并 PR 自动生成发布说明草稿。
+- release workflow：根据合并 PR 自动生成发布说明草稿，并在发布前检查安全 issue、仓库健康度、测试和构建命令。
 - security workflow：识别安全关键词、凭证泄露和高风险问题。
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
 - application evidence：把维护指标、健康度、Codex 使用场景、API credits 用途和验证命令聚合成申请证据包。
@@ -257,6 +269,7 @@ internal/input           JSON 输入加载
 internal/model           核心数据结构
 internal/triage          issue 分类规则
 internal/report          报告与发布说明生成
+internal/releasecheck    发布准备检查
 internal/github          GitHub REST API 数据导出
 internal/health          开源仓库健康度检查
 internal/codexplan       Codex 使用计划生成

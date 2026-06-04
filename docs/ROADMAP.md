@@ -12,6 +12,7 @@
 - 支持 GitHub API 创建或更新 PR review comment，使用稳定 marker 避免重复评论。
 - 支持 Codex for OSS 申请证据包生成，聚合维护指标、仓库健康度、Codex 使用计划和验证命令。
 - 支持 OSSF Scorecard 风格的本地治理内容检查，覆盖 CI 权限、测试构建命令、SARIF 上传、Dependabot 覆盖和 PR 模板提示。
+- 支持发布准备检查，结合 issues、PRs 和仓库健康度输出 READY/BLOCKED、阻塞项和发布前命令。
 
 ## v0.2
 

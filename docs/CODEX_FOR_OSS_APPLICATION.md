@@ -6,7 +6,7 @@
 
 `oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
 
-当前版本还支持 GitHub REST API 数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、开源仓库健康度检查、CI/Dependabot/PR 模板内容质量检查、CodeQL、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
+当前版本还支持 GitHub REST API 数据导出、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、发布准备检查、开源仓库健康度检查、CI/Dependabot/PR 模板内容质量检查、CodeQL、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
 新增的 `application-pack` 命令会把维护报告、仓库健康度、Codex 使用计划、API credits 用途和可执行验证命令聚合成一份申请证据包，便于在公开仓库中展示项目与 Codex for OSS 试用目标的匹配度。
 
@@ -15,6 +15,7 @@
 - 降低维护者处理 issue 和 PR 的重复成本。
 - 把安全风险、回归风险、长期未更新问题显式暴露出来。
 - 对 PR diff 做确定性风险扫描，并把结果交给 Codex 复核。
+- 在发布前检查安全 issue、仓库健康度、风险提示和发布命令，减少遗漏。
 - 支持仓库自定义规则，让不同项目按自己的风险模型调整审查策略。
 - 生成稳定 Markdown PR 评论，便于后续接入 GitHub Bot 自动更新。
 - 通过稳定 marker 创建或更新 GitHub PR 评论，避免 Bot 重复刷评论。
@@ -64,6 +65,7 @@ go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config exa
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format comment
 GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
+go run ./cmd/oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0
 go run ./cmd/oss-maintainer-kit ai-review --diff examples/pr.diff --config examples/review-rules.json --prompt-only
 go run ./cmd/oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json
 go run ./cmd/oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --repo-url https://github.com/<your-account>/oss-maintainer-kit

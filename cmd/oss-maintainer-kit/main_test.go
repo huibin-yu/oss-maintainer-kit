@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,4 +56,75 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	if !strings.Contains(createdBody, "oss-maintainer-kit:review-diff") {
 		t.Fatalf("missing marker in created body: %q", createdBody)
 	}
+}
+
+func TestRunReleaseCheckJSONReportsBlockedRelease(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":2,"title":"feat: add release check","body":"","state":"closed","author":"bob","labels":[],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-02T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"release-check",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--pulls", filepath.Join(root, "pulls.json"),
+			"--root", root,
+			"--project", "demo",
+			"--version", "v1.0.0",
+			"--format", "json",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result struct {
+		Ready    bool     `json:"ready"`
+		Blockers []string `json:"blockers"`
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Ready {
+		t.Fatalf("release unexpectedly ready: %s", output)
+	}
+	if len(result.Blockers) == 0 {
+		t.Fatalf("missing blockers: %s", output)
+	}
+}
+
+func writeTestFile(t *testing.T, root, name, body string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
