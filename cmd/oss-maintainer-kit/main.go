@@ -56,6 +56,8 @@ func run(args []string) error {
 		return runReviewDiff(args[1:])
 	case "ai-review":
 		return runAIReview(args[1:])
+	case "github-comment":
+		return runGitHubComment(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -223,6 +225,46 @@ func runAIReview(args []string) error {
 	return os.WriteFile(*output, []byte(content), 0644)
 }
 
+func runGitHubComment(args []string) error {
+	fs := flag.NewFlagSet("github-comment", flag.ContinueOnError)
+	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	number := fs.Int("pr", 0, "pull request number")
+	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	configPath := fs.String("config", "", "optional JSON review rules config")
+	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
+	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	diff, err := readAll(*diffPath)
+	if err != nil {
+		return err
+	}
+	cfg, err := loadReviewConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
+	if err != nil {
+		return err
+	}
+	body := prcomment.Markdown(findings)
+	comment, err := github.Client{
+		BaseURL: *baseURL,
+		Token:   os.Getenv(*tokenEnv),
+	}.UpsertIssueComment(context.Background(), *repo, *number, "<!-- oss-maintainer-kit:review-diff -->", body)
+	if err != nil {
+		return err
+	}
+	if comment.HTMLURL != "" {
+		fmt.Println(comment.HTMLURL)
+		return nil
+	}
+	fmt.Printf("updated comment %d\n", comment.ID)
+	return nil
+}
+
 func loadReviewConfig(path string) (reviewconfig.Config, error) {
 	if path == "" {
 		return reviewconfig.Config{}, nil
@@ -378,5 +420,6 @@ Usage:
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
-  oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only`)
+  oss-maintainer-kit ai-review --diff examples/pr.diff --prompt-only
+  oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)
 }

@@ -17,6 +17,7 @@
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
 - `review-diff --config`：加载仓库自定义 JSON 规则。
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
+- `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
 - GitHub Actions：内置 CI、CodeQL、PR diff SARIF 扫描和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
@@ -133,6 +134,16 @@ go run ./cmd/oss-maintainer-kit review-diff \
   --format comment
 ```
 
+创建或更新 GitHub PR 评论：
+
+```bash
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-comment \
+  --repo owner/name \
+  --pr 123 \
+  --diff examples/pr.diff \
+  --config examples/review-rules.json
+```
+
 生成 Codex review prompt：
 
 ```bash
@@ -214,6 +225,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - AI-assisted review：把本地 diff 风险扫描结果和 PR diff 组合成可审查的 Codex prompt。
 - Repository-specific rules：通过 JSON 配置给不同仓库定制 review 规则。
 - PR comments：生成带稳定标记的 Markdown 评论，便于后续 GitHub Bot 更新评论。
+- GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
 - release workflow：根据合并 PR 自动生成发布说明草稿。
@@ -260,7 +272,6 @@ docs                     申请与路线图材料
 
 ## 路线图
 
-- 增加 GitHub API 自动创建或更新 PR review comment。
 - 增加 OSSF Scorecard 风格的治理检查项。
 - 增加仓库健康度趋势报告。
 

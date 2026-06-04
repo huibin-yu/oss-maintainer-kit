@@ -2,13 +2,8 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
@@ -78,42 +73,10 @@ func (c Client) fetch(ctx context.Context, repo, resource string, limit int, dst
 	if limit > 100 {
 		limit = 100
 	}
-	base := strings.TrimRight(c.BaseURL, "/")
-	if base == "" {
-		base = "https://api.github.com"
-	}
-	endpoint, err := url.Parse(fmt.Sprintf("%s/repos/%s/%s", base, repo, resource))
-	if err != nil {
-		return err
-	}
-	query := endpoint.Query()
-	query.Set("state", "all")
-	query.Set("per_page", strconv.Itoa(limit))
-	endpoint.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-
-	httpClient := c.HTTP
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 20 * time.Second}
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("github %s: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-	return json.NewDecoder(resp.Body).Decode(dst)
+	return c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), map[string]string{
+		"state":    "all",
+		"per_page": perPage(limit),
+	}, nil, dst)
 }
 
 func labels(values []labelResponse) []string {
