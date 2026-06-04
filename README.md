@@ -21,7 +21,7 @@
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
-- GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、release-check 发布门禁和 Dependabot 配置。
+- GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、release-check 发布门禁、tag 发布产物和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
 - 内置示例数据、单元测试和 GitHub Actions CI。
 
@@ -140,6 +140,8 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
 ```
 
 `.github/workflows/release-check.yml` 会在 PR 和 main 分支上使用 `github-export` 导出当前仓库 issues/PRs，再以 `--fail-on-blocked` 执行发布准备检查。
+
+`.github/workflows/release-artifacts.yml` 会在 `v*` tag 上构建 Linux、macOS、Windows CLI，生成 SPDX SBOM、SHA256 checksums，并用 GitHub artifact attestation 生成 provenance。
 
 离线检查 PR diff：
 
@@ -293,6 +295,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
 - SBOM：输出 SPDX 2.3 JSON，为依赖审计、商用尽调和发布归档提供可机器读取证据。
+- Release artifacts：在版本 tag 上构建多平台 CLI，生成 SBOM、checksums 和 provenance attestation。
 - issue triage：把非结构化 issue 内容转换为优先级、标签和处理建议。
 - release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
@@ -302,7 +305,7 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
 - code quality：维护规则引擎、CLI 体验、测试覆盖和 CI。
 - release gate automation：通过 `.github/workflows/release-check.yml` 在 push 和 PR 上运行发布准备检查。
 - supply-chain security：通过 `.github/workflows/govulncheck.yml`、`.github/workflows/scorecard.yml` 和 Dependabot 持续发现 Go 漏洞、依赖更新与开源安全治理短板。
-- commercial readiness：通过 SBOM、发布门禁、健康度报告和申请证据包沉淀可复验材料。
+- commercial readiness：通过 SBOM、发布门禁、发布产物 provenance、健康度报告和申请证据包沉淀可复验材料。
 
 ## 开发方式
 

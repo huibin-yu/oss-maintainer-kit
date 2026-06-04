@@ -20,6 +20,7 @@ func TestRepositoryScoresRequiredFiles(t *testing.T) {
 		".github/workflows/scorecard.yml":           "permissions:\n  contents: read\n  security-events: write\n  id-token: write\nsteps:\n  - uses: ossf/scorecard-action@v2\n    with:\n      results_format: sarif\n      publish_results: true\n  - uses: github/codeql-action/upload-sarif@v3\n",
 		".github/workflows/review-diff.yml":         "permissions:\n  contents: read\n  security-events: write\nsteps:\n  - uses: github/codeql-action/upload-sarif@v3\n",
 		".github/workflows/release-check.yml":       "permissions:\n  contents: read\n  issues: read\n  pull-requests: read\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind issues --output release-issues.json\n  - run: go run ./cmd/oss-maintainer-kit github-export --repo ${{ github.repository }} --kind pulls --output release-pulls.json\n  - run: go run ./cmd/oss-maintainer-kit release-check --issues release-issues.json --pulls release-pulls.json --root . --policy examples/release-policy.json --fail-on-blocked\n",
+		".github/workflows/release-artifacts.yml":   "on:\n  push:\n    tags:\n      - \"v*\"\npermissions:\n  contents: read\n  attestations: write\n  id-token: write\nsteps:\n  - run: go run ./cmd/oss-maintainer-kit sbom --output dist/sbom.spdx.json\n  - run: sha256sum * > checksums.sha256\n  - uses: actions/attest-build-provenance@v2\n    with:\n      subject-path: \"dist/*\"\n  - uses: actions/upload-artifact@v4\n",
 		".github/dependabot.yml":                    "package-ecosystem: \"gomod\"\npackage-ecosystem: \"github-actions\"\n",
 		".github/ISSUE_TEMPLATE/bug_report.md":      "bug",
 		".github/ISSUE_TEMPLATE/feature_request.md": "feature",
@@ -59,6 +60,7 @@ func TestRepositoryReportsContentQualityFailures(t *testing.T) {
 	writeHealthFile(t, root, ".github/workflows/scorecard.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/workflows/review-diff.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/workflows/release-check.yml", "permissions:\n  contents: read\n")
+	writeHealthFile(t, root, ".github/workflows/release-artifacts.yml", "permissions:\n  contents: read\n")
 	writeHealthFile(t, root, ".github/dependabot.yml", "package-ecosystem: \"gomod\"\n")
 	writeHealthFile(t, root, ".github/PULL_REQUEST_TEMPLATE.md", "描述变更")
 
@@ -74,6 +76,9 @@ func TestRepositoryReportsContentQualityFailures(t *testing.T) {
 		"Release check live data export",
 		"Release check policy command",
 		"Release check blocking exit",
+		"Release artifacts tag trigger",
+		"Release artifacts provenance",
+		"Release artifacts SBOM checksums",
 		"Dependabot GitHub Actions updates",
 		"PR template test checklist",
 	} {

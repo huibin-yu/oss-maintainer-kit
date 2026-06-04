@@ -1,0 +1,66 @@
+name: release-artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  attestations: write
+  id-token: write
+
+jobs:
+  artifacts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+            ext: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+            ext: ""
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+            ext: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - run: mkdir -p dist
+      - name: Build CLI
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build \
+            -trimpath \
+            -o "dist/oss-maintainer-kit-${{ matrix.suffix }}${{ matrix.ext }}" \
+            ./cmd/oss-maintainer-kit
+      - name: Generate SBOM
+        run: |
+          go run ./cmd/oss-maintainer-kit sbom \
+            --root . \
+            --project oss-maintainer-kit \
+            --namespace "https://github.com/${{ github.repository }}/releases/${{ github.ref_name }}/sbom" \
+            --output "dist/oss-maintainer-kit-${{ matrix.suffix }}.spdx.json"
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > "oss-maintainer-kit-${{ matrix.suffix }}.sha256"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oss-maintainer-kit-${{ matrix.suffix }}
+          path: dist/*
+          if-no-files-found: error
