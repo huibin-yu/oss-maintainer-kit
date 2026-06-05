@@ -52,6 +52,10 @@ func Prompt(req ReviewRequest) string {
 }
 
 func (c Client) Review(ctx context.Context, req ReviewRequest) (ReviewResult, error) {
+	return c.Complete(ctx, "你是严谨的开源项目维护者，负责 PR review。", Prompt(req))
+}
+
+func (c Client) Complete(ctx context.Context, systemPrompt, userPrompt string) (ReviewResult, error) {
 	if c.APIKey == "" {
 		return ReviewResult{}, fmt.Errorf("api key is required")
 	}
@@ -67,8 +71,8 @@ func (c Client) Review(ctx context.Context, req ReviewRequest) (ReviewResult, er
 	payload := chatRequest{
 		Model: model,
 		Messages: []message{
-			{Role: "system", Content: "你是严谨的开源项目维护者，负责 PR review。"},
-			{Role: "user", Content: Prompt(req)},
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
 		},
 	}
 	body, err := json.Marshal(payload)

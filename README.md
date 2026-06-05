@@ -8,6 +8,7 @@
 
 - `triage`：根据标题、正文、标签和更新时间生成优先级、建议标签、命中证据和建议动作。
 - `release-notes`：从已合并 PR 生成发布说明草稿。
+- `release-summary`：从已合并 PR 生成发布摘要、风险提示和 Codex 发布摘要 prompt，也可调用 OpenAI-compatible provider。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和带原因/证据/建议动作的优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
@@ -58,6 +59,26 @@ go run ./cmd/oss-maintainer-kit triage --input examples/issues.json --format jso
 
 ```bash
 go run ./cmd/oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
+```
+
+生成发布摘要和 Codex prompt：
+
+```bash
+go run ./cmd/oss-maintainer-kit release-summary \
+  --input examples/pulls.json \
+  --project oss-maintainer-kit \
+  --version v0.1.0
+```
+
+调用 OpenAI-compatible provider 生成发布摘要：
+
+```bash
+OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit release-summary \
+  --input examples/pulls.json \
+  --project oss-maintainer-kit \
+  --version v0.1.0 \
+  --provider-config examples/ai-provider.json \
+  --prompt-only=false
 ```
 
 检查发布准备状态：
@@ -400,6 +421,7 @@ Provider 配置字段说明：
 - Release artifacts：在版本 tag 上构建多平台 CLI，生成 SBOM、checksums 和 provenance attestation。
 - issue triage：把非结构化 issue 内容转换为优先级、标签、命中证据、处理原因和建议动作。
 - release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
+- release summary：根据已合并 PR 生成用户可读的发布摘要、风险提示和 Codex-ready 摘要 prompt。
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
 - repository health：检查开源治理材料和关键 workflow 内容是否完整，便于维护者持续改进仓库质量。
 - health remediation：对缺失治理项输出可执行修复建议，减少申请前人工排查成本。

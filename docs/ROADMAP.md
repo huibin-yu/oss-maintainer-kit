@@ -30,7 +30,7 @@
 
 - 支持 OpenAI-compatible provider 配置文件和 HTTP 429/5xx 重试策略。
 - 支持根据 PR diff 和本地风险发现生成测试建议和 Codex 测试计划 prompt。
-- 支持使用 Codex 生成发布说明摘要。
+- 支持根据已合并 PR 生成发布摘要、风险提示和 Codex 发布摘要 prompt，并可调用 OpenAI-compatible provider。
 - 保留确定性规则作为兜底，避免 AI 输出不可审查。
 
 ## v0.4

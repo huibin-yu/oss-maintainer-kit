@@ -22,6 +22,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/input"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/prcomment"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/releasecheck"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/releasesummary"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
@@ -49,6 +50,8 @@ func run(args []string) error {
 		return runTriage(args[1:])
 	case "release-notes":
 		return runReleaseNotes(args[1:])
+	case "release-summary":
+		return runReleaseSummary(args[1:])
 	case "release-check":
 		return runReleaseCheck(args[1:])
 	case "report":
@@ -126,6 +129,56 @@ func runReleaseNotes(args []string) error {
 	}
 	fmt.Print(report.ReleaseNotes(*version, pulls))
 	return nil
+}
+
+func runReleaseSummary(args []string) error {
+	fs := flag.NewFlagSet("release-summary", flag.ContinueOnError)
+	inputPath := fs.String("input", "examples/pulls.json", "pull requests JSON file")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	version := fs.String("version", "v0.1.0", "release version")
+	providerPath := fs.String("provider-config", "", "optional OpenAI-compatible provider JSON config")
+	baseURL := fs.String("base-url", "https://api.openai.com/v1", "OpenAI-compatible API base URL")
+	model := fs.String("model", "gpt-4.1-mini", "summary model")
+	apiKeyEnv := fs.String("api-key-env", "OPENAI_API_KEY", "environment variable that stores API key")
+	retries := fs.Int("retries", 0, "retry count for transient AI provider failures")
+	promptOnly := fs.Bool("prompt-only", true, "print summary prompt instead of calling API")
+	output := fs.String("output", "", "write release summary to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	pulls, err := input.PullRequests(*inputPath)
+	if err != nil {
+		return err
+	}
+	summary := releasesummary.Build(releasesummary.Input{Project: *project, Version: *version, Pulls: pulls})
+	var content string
+	if *promptOnly {
+		content = releasesummary.Markdown(summary)
+	} else {
+		provider, err := providerFromFlags(fs, *providerPath, *baseURL, *model, *apiKeyEnv, *retries)
+		if err != nil {
+			return err
+		}
+		result, err := ai.Client{
+			BaseURL: provider.BaseURL,
+			APIKey:  os.Getenv(provider.APIKeyEnv),
+			Model:   provider.Model,
+			Retries: provider.Retries,
+		}.Complete(context.Background(), "你是严谨的开源项目维护者，负责生成发布摘要。", summary.Prompt)
+		if err != nil {
+			return err
+		}
+		content = result.Content
+	}
+	if *output == "" {
+		fmt.Print(content)
+		if !strings.HasSuffix(content, "\n") {
+			fmt.Println()
+		}
+		return nil
+	}
+	return os.WriteFile(*output, []byte(content), 0644)
 }
 
 func runReleaseCheck(args []string) error {
@@ -263,27 +316,8 @@ func runAIReview(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	setFlags := map[string]bool{}
-	fs.Visit(func(flag *flag.Flag) {
-		setFlags[flag.Name] = true
-	})
-	provider, err := ai.LoadProviderConfig(*providerPath)
+	provider, err := providerFromFlags(fs, *providerPath, *baseURL, *model, *apiKeyEnv, *retries)
 	if err != nil {
-		return err
-	}
-	if setFlags["base-url"] {
-		provider.BaseURL = *baseURL
-	}
-	if setFlags["model"] {
-		provider.Model = *model
-	}
-	if setFlags["api-key-env"] {
-		provider.APIKeyEnv = *apiKeyEnv
-	}
-	if setFlags["retries"] {
-		provider.Retries = *retries
-	}
-	if err := provider.Validate(); err != nil {
 		return err
 	}
 
@@ -323,6 +357,33 @@ func runAIReview(args []string) error {
 		return nil
 	}
 	return os.WriteFile(*output, []byte(content), 0644)
+}
+
+func providerFromFlags(fs *flag.FlagSet, path, baseURL, model, apiKeyEnv string, retries int) (ai.ProviderConfig, error) {
+	setFlags := map[string]bool{}
+	fs.Visit(func(flag *flag.Flag) {
+		setFlags[flag.Name] = true
+	})
+	provider, err := ai.LoadProviderConfig(path)
+	if err != nil {
+		return ai.ProviderConfig{}, err
+	}
+	if setFlags["base-url"] {
+		provider.BaseURL = baseURL
+	}
+	if setFlags["model"] {
+		provider.Model = model
+	}
+	if setFlags["api-key-env"] {
+		provider.APIKeyEnv = apiKeyEnv
+	}
+	if setFlags["retries"] {
+		provider.Retries = retries
+	}
+	if err := provider.Validate(); err != nil {
+		return ai.ProviderConfig{}, err
+	}
+	return provider, nil
 }
 
 func runTestPlan(args []string) error {
@@ -756,6 +817,7 @@ func usage() {
 Usage:
   oss-maintainer-kit triage --input examples/issues.json [--format table|json]
   oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
+  oss-maintainer-kit release-summary --input examples/pulls.json --version v0.1.0 [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .

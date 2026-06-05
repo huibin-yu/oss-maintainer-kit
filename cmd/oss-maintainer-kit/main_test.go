@@ -132,6 +132,80 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 	}
 }
 
+func TestRunReleaseSummaryPromptOnly(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"release-summary",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v1.0.0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "# demo v1.0.0 发布摘要") || !strings.Contains(output, "Codex Prompt") {
+		t.Fatalf("unexpected release summary:\n%s", output)
+	}
+}
+
+func TestRunReleaseSummaryCallsProvider(t *testing.T) {
+	var seenUserPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		seenUserPrompt = req.Messages[len(req.Messages)-1].Content
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"summary ok"}}]}`))
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "provider.json", `{
+		"base_url": "`+server.URL+`",
+		"model": "summary-model",
+		"api_key_env": "SUMMARY_API_KEY"
+	}`)
+	t.Setenv("SUMMARY_API_KEY", "test-key")
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"release-summary",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v1.0.0",
+			"--provider-config", filepath.Join(root, "provider.json"),
+			"--prompt-only=false",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "summary ok") {
+		t.Fatalf("unexpected provider output: %s", output)
+	}
+	if !strings.Contains(seenUserPrompt, "请为开源项目 demo 的 v1.0.0 版本生成中文发布摘要") {
+		t.Fatalf("unexpected prompt: %s", seenUserPrompt)
+	}
+}
+
 func TestRunAIReviewUsesProviderConfigAndFlagOverrides(t *testing.T) {
 	var calls int
 	var seenModel string
