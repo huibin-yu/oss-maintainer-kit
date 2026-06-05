@@ -58,6 +58,53 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	}
 }
 
+func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
+	var createdBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/acme/demo/issues/42/comments":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/acme/demo/issues/42/comments":
+			data, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			createdBody = string(data)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":401,"html_url":"https://github.com/acme/demo/issues/42#issuecomment-401"}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":7,"title":"token leak in debug logs","body":"A secret is printed.","state":"open","author":"alice","labels":["bug"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-triage-comment",
+			"--repo", "acme/demo",
+			"--issue", "42",
+			"--input", filepath.Join(root, "issues.json"),
+			"--base-url", server.URL,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(createdBody, "oss-maintainer-kit:triage") || !strings.Contains(createdBody, "token leak in debug logs") {
+		t.Fatalf("unexpected created body: %q", createdBody)
+	}
+	if !strings.Contains(output, "https://github.com/acme/demo/issues/42#issuecomment-401") {
+		t.Fatalf("unexpected output: %s", output)
+	}
+}
+
 func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[

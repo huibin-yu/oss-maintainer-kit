@@ -6,14 +6,14 @@
 
 `oss-maintainer-kit` 是一个 Go 编写的开源维护自动化 CLI。它读取 GitHub Issues 和 Pull Requests 的结构化导出数据，生成带命中证据和建议动作的 issue triage、发布说明草稿和维护报告，帮助维护者处理重复但重要的项目维护工作。
 
-当前版本还支持 GitHub REST/GraphQL API 分页数据导出、可解释 issue triage Markdown 评论、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、provider 配置文件与重试策略、测试建议和 Codex 测试计划 prompt、Codex 发布摘要 prompt、安全专项报告与 GitHub Actions 安全门禁、SPDX SBOM 生成、可配置发布准备检查、release-check GitHub Actions 门禁、tag 发布产物与 provenance、开源仓库健康度检查、健康度趋势报告、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
+当前版本还支持 GitHub REST/GraphQL API 分页数据导出、可解释 issue triage Markdown 评论、GitHub issue 分诊评论创建或更新、PR diff 风险扫描、自定义 review 规则、PR 评论格式输出、GitHub PR 评论创建或更新、SARIF 输出、OpenAI-compatible review prompt 生成、provider 配置文件与重试策略、测试建议和 Codex 测试计划 prompt、Codex 发布摘要 prompt、安全专项报告与 GitHub Actions 安全门禁、SPDX SBOM 生成、可配置发布准备检查、release-check GitHub Actions 门禁、tag 发布产物与 provenance、开源仓库健康度检查、健康度趋势报告、CI/Dependabot/PR 模板内容质量检查、CodeQL、govulncheck、OpenSSF Scorecard、Dependabot，以及 Codex for OSS 使用计划生成。项目覆盖了申请页强调的 PR review、issue triage、release workflow、security/code quality 等真实开源维护场景。
 
 新增的 `application-pack` 命令会把维护报告、仓库健康度、release/security readiness、Codex 使用计划、API credits 用途和可执行验证命令聚合成一份申请证据包，便于在公开仓库中展示项目与 Codex for OSS 试用目标的匹配度。
 
 ## 开源价值
 
 - 降低维护者处理 issue 和 PR 的重复成本，并让优先级判断具备可审查的原因、证据和建议动作。
-- 把可解释 issue triage 输出为带稳定 marker 的 Markdown 评论，便于后续 GitHub Bot 更新维护队列建议。
+- 把可解释 issue triage 输出为带稳定 marker 的 Markdown 评论，并可直接创建或更新到指定 GitHub issue，便于后续 GitHub Bot 更新维护队列建议。
 - 把安全风险、回归风险、长期未更新问题显式暴露出来。
 - 对 PR diff 做确定性风险扫描，并把结果交给 Codex 复核。
 - 在发布前按仓库策略检查安全 issue、stale issue、仓库健康度、风险提示和发布命令，减少遗漏。
@@ -72,6 +72,7 @@ API credits will be used to prototype maintainer workflows that summarize issues
 ```text
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json
 go run ./cmd/oss-maintainer-kit triage-comment --input examples/issues.json --output triage-comment.md
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif
 go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format comment
 GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json

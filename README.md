@@ -8,6 +8,7 @@
 
 - `triage`：根据标题、正文、标签和更新时间生成优先级、建议标签、命中证据和建议动作。
 - `triage-comment`：把可解释 issue triage 结果生成带稳定 marker 的 GitHub Markdown 评论，便于 Bot 更新维护队列建议。
+- `github-triage-comment`：把分诊评论创建或更新到指定 GitHub issue，避免维护队列评论重复刷屏。
 - `release-notes`：从已合并 PR 生成发布说明草稿。
 - `release-summary`：从已合并 PR 生成发布摘要、风险提示和 Codex 发布摘要 prompt，也可调用 OpenAI-compatible provider。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
@@ -62,6 +63,15 @@ go run ./cmd/oss-maintainer-kit triage --input examples/issues.json --format jso
 go run ./cmd/oss-maintainer-kit triage-comment \
   --input examples/issues.json \
   --output triage-comment.md
+```
+
+创建或更新 GitHub issue 分诊评论：
+
+```bash
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-triage-comment \
+  --repo owner/name \
+  --issue 123 \
+  --input examples/issues.json
 ```
 
 生成发布说明：

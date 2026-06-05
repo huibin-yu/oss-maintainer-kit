@@ -83,6 +83,8 @@ func run(args []string) error {
 		return runTestPlan(args[1:])
 	case "github-comment":
 		return runGitHubComment(args[1:])
+	case "github-triage-comment":
+		return runGitHubTriageComment(args[1:])
 	case "help", "-h", "--help":
 		usage()
 		return nil
@@ -490,6 +492,37 @@ func runGitHubComment(args []string) error {
 	return nil
 }
 
+func runGitHubTriageComment(args []string) error {
+	fs := flag.NewFlagSet("github-triage-comment", flag.ContinueOnError)
+	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	number := fs.Int("issue", 0, "issue or pull request number")
+	inputPath := fs.String("input", "examples/issues.json", "issues JSON file")
+	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
+	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*inputPath)
+	if err != nil {
+		return err
+	}
+	body := triagecomment.Markdown(triage.RuleSet{}.Issues(issues))
+	comment, err := github.Client{
+		BaseURL: *baseURL,
+		Token:   os.Getenv(*tokenEnv),
+	}.UpsertIssueComment(context.Background(), *repo, *number, triagecomment.Marker, body)
+	if err != nil {
+		return err
+	}
+	if comment.HTMLURL != "" {
+		fmt.Println(comment.HTMLURL)
+		return nil
+	}
+	fmt.Printf("updated comment %d\n", comment.ID)
+	return nil
+}
+
 func loadReviewConfig(path string) (reviewconfig.Config, error) {
 	if path == "" {
 		return reviewconfig.Config{}, nil
@@ -855,5 +888,6 @@ Usage:
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
-  oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)
+  oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
+  oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json`)
 }
