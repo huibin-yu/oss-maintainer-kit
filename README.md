@@ -23,6 +23,7 @@
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
+- `test-plan`：根据 PR diff 和本地风险发现生成测试建议、验证命令和 Codex 测试计划 prompt。
 - GitHub Actions：内置 CI、CodeQL、govulncheck、OpenSSF Scorecard、PR diff SARIF 扫描、security-report 安全门禁、release-check 发布门禁、tag 发布产物和 Dependabot 配置。
 - 纯标准库实现，便于审查、测试和二次开发。
 - 内置示例数据、单元测试和 GitHub Actions CI。
@@ -271,6 +272,16 @@ OPENAI_API_KEY=sk_xxx go run ./cmd/oss-maintainer-kit ai-review \
   --provider-config examples/ai-provider.json
 ```
 
+生成测试建议和 Codex 测试计划 prompt：
+
+```bash
+go run ./cmd/oss-maintainer-kit test-plan \
+  --diff examples/pr.diff \
+  --config examples/review-rules.json \
+  --project oss-maintainer-kit \
+  --output test-plan.md
+```
+
 ## 数据格式
 
 `examples/issues.json`：
@@ -376,6 +387,7 @@ Provider 配置字段说明：
 - PR review：对规则变更、输出格式、边界条件和测试覆盖进行审查。
 - AI-assisted review：把本地 diff 风险扫描结果和 PR diff 组合成可审查的 Codex prompt。
 - AI provider：通过 OpenAI-compatible provider 配置文件管理 `base_url`、`model`、`api_key_env` 和重试次数，并允许 CLI 参数覆盖。
+- Test planning：根据 PR diff 和本地风险发现生成测试建议、验证命令和 Codex-ready 测试计划 prompt。
 - Repository-specific rules：通过 JSON 配置给不同仓库定制 review 规则。
 - PR comments：生成带稳定标记的 Markdown 评论，便于后续 GitHub Bot 更新评论。
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。

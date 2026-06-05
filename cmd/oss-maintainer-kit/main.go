@@ -27,6 +27,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sarif"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/sbom"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/securityreport"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/testplan"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
 )
 
@@ -72,6 +73,8 @@ func run(args []string) error {
 		return runReviewDiff(args[1:])
 	case "ai-review":
 		return runAIReview(args[1:])
+	case "test-plan":
+		return runTestPlan(args[1:])
 	case "github-comment":
 		return runGitHubComment(args[1:])
 	case "help", "-h", "--help":
@@ -320,6 +323,47 @@ func runAIReview(args []string) error {
 		return nil
 	}
 	return os.WriteFile(*output, []byte(content), 0644)
+}
+
+func runTestPlan(args []string) error {
+	fs := flag.NewFlagSet("test-plan", flag.ContinueOnError)
+	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	configPath := fs.String("config", "", "optional JSON review rules config")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	format := fs.String("format", "markdown", "output format: markdown or json")
+	output := fs.String("output", "", "write test plan to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	diff, err := readAll(*diffPath)
+	if err != nil {
+		return err
+	}
+	cfg, err := loadReviewConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
+	if err != nil {
+		return err
+	}
+	plan := testplan.Build(testplan.Input{Project: *project, Diff: diff, Findings: findings})
+	var content []byte
+	if *format == "json" {
+		content, err = json.MarshalIndent(plan, "", "  ")
+		if err != nil {
+			return err
+		}
+		content = append(content, '\n')
+	} else {
+		content = []byte(testplan.Markdown(plan))
+	}
+	if *output == "" {
+		fmt.Print(string(content))
+		return nil
+	}
+	return os.WriteFile(*output, content, 0644)
 }
 
 func runGitHubComment(args []string) error {
@@ -724,5 +768,6 @@ Usage:
   oss-maintainer-kit github-export --repo owner/name --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
+  oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json`)
 }

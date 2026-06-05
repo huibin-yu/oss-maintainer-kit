@@ -29,7 +29,8 @@
 ## v0.3
 
 - 支持 OpenAI-compatible provider 配置文件和 HTTP 429/5xx 重试策略。
-- 支持使用 Codex 生成测试建议和发布说明摘要。
+- 支持根据 PR diff 和本地风险发现生成测试建议和 Codex 测试计划 prompt。
+- 支持使用 Codex 生成发布说明摘要。
 - 保留确定性规则作为兜底，避免 AI 输出不可审查。
 
 ## v0.4

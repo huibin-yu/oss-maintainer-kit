@@ -193,6 +193,43 @@ func TestRunAIReviewUsesProviderConfigAndFlagOverrides(t *testing.T) {
 	}
 }
 
+func TestRunTestPlanOutputsJSON(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++const token = "abc"
+`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"test-plan",
+			"--diff", filepath.Join(root, "pr.diff"),
+			"--project", "demo",
+			"--format", "json",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var result struct {
+		Project     string `json:"project"`
+		Suggestions []struct {
+			Area string `json:"area"`
+		} `json:"suggestions"`
+		Prompt string `json:"prompt"`
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Project != "demo" || len(result.Suggestions) == 0 || !strings.Contains(result.Prompt, "测试计划") {
+		t.Fatalf("unexpected test plan: %s", output)
+	}
+}
+
 func TestRunTriageTableIncludesAction(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
