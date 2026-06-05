@@ -24,7 +24,7 @@
 
 ## v0.2
 
-- 支持将可解释 triage 结果用于 GitHub 评论和 Checks 输出。
+- 支持将可解释 triage 结果输出为带稳定 marker 的 GitHub Markdown 评论。
 
 ## v0.3
 

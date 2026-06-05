@@ -30,6 +30,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/securityreport"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/testplan"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/triage"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/triagecomment"
 )
 
 func main() {
@@ -48,6 +49,8 @@ func run(args []string) error {
 	switch args[0] {
 	case "triage":
 		return runTriage(args[1:])
+	case "triage-comment":
+		return runTriageComment(args[1:])
 	case "release-notes":
 		return runReleaseNotes(args[1:])
 	case "release-summary":
@@ -113,6 +116,26 @@ func runTriage(args []string) error {
 		fmt.Fprintf(w, "#%d\t%s\t%d\t%s\t%s\t%s\n", result.Number, result.Priority, result.StaleDays, strings.Join(result.Suggested, ","), result.Action, result.Title)
 	}
 	return w.Flush()
+}
+
+func runTriageComment(args []string) error {
+	fs := flag.NewFlagSet("triage-comment", flag.ContinueOnError)
+	inputPath := fs.String("input", "examples/issues.json", "issues JSON file")
+	output := fs.String("output", "", "write Markdown comment to file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	issues, err := input.Issues(*inputPath)
+	if err != nil {
+		return err
+	}
+	content := triagecomment.Markdown(triage.RuleSet{}.Issues(issues))
+	if *output == "" {
+		fmt.Print(content)
+		return nil
+	}
+	return os.WriteFile(*output, []byte(content), 0644)
 }
 
 func runReleaseNotes(args []string) error {
@@ -816,6 +839,7 @@ func usage() {
 
 Usage:
   oss-maintainer-kit triage --input examples/issues.json [--format table|json]
+  oss-maintainer-kit triage-comment --input examples/issues.json [--output triage-comment.md]
   oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
   oss-maintainer-kit release-summary --input examples/pulls.json --version v0.1.0 [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]

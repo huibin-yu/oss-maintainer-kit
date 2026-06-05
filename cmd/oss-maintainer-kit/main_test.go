@@ -58,6 +58,35 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	}
 }
 
+func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":7,"title":"token leak in debug logs","body":"A secret is printed.","state":"open","author":"alice","labels":["bug"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"triage-comment",
+			"--input", filepath.Join(root, "issues.json"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	for _, want := range []string{
+		"oss-maintainer-kit:triage",
+		"Issue 分诊建议",
+		"#7 token leak in debug logs",
+		"命中关键词：token leak",
+		"优先安排安全复核",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestRunGitHubExportUsesPaginationFilters(t *testing.T) {
 	var state, since, perPage string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

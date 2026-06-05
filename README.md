@@ -7,6 +7,7 @@
 ## 功能
 
 - `triage`：根据标题、正文、标签和更新时间生成优先级、建议标签、命中证据和建议动作。
+- `triage-comment`：把可解释 issue triage 结果生成带稳定 marker 的 GitHub Markdown 评论，便于 Bot 更新维护队列建议。
 - `release-notes`：从已合并 PR 生成发布说明草稿。
 - `release-summary`：从已合并 PR 生成发布摘要、风险提示和 Codex 发布摘要 prompt，也可调用 OpenAI-compatible provider。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
@@ -53,6 +54,14 @@ go run ./cmd/oss-maintainer-kit triage --input examples/issues.json
 
 ```bash
 go run ./cmd/oss-maintainer-kit triage --input examples/issues.json --format json
+```
+
+生成 GitHub issue 分诊评论：
+
+```bash
+go run ./cmd/oss-maintainer-kit triage-comment \
+  --input examples/issues.json \
+  --output triage-comment.md
 ```
 
 生成发布说明：
@@ -420,6 +429,7 @@ Provider 配置字段说明：
 - SBOM：输出 SPDX 2.3 JSON，为依赖审计、商用尽调和发布归档提供可机器读取证据。
 - Release artifacts：在版本 tag 上构建多平台 CLI，生成 SBOM、checksums 和 provenance attestation。
 - issue triage：把非结构化 issue 内容转换为优先级、标签、命中证据、处理原因和建议动作。
+- triage comments：把可解释 issue triage 结果生成稳定 Markdown 评论，便于 GitHub Bot 在维护者讨论区更新当前优先队列。
 - release workflow：根据合并 PR 自动生成发布说明草稿，并按仓库发布策略在本地和 GitHub Actions 中检查安全 issue、stale issue、仓库健康度、测试和构建命令。
 - release summary：根据已合并 PR 生成用户可读的发布摘要、风险提示和 Codex-ready 摘要 prompt。
 - security workflow：识别安全关键词、凭证泄露和高风险问题，并用 govulncheck 覆盖 Go 依赖与标准库漏洞扫描。
