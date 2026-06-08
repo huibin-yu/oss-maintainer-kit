@@ -14,6 +14,7 @@ import (
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/ai"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/applicationpack"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/checkrun"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/codexplan"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/diffreview"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/github"
@@ -291,7 +292,7 @@ func runReviewDiff(args []string) error {
 	fs := flag.NewFlagSet("review-diff", flag.ContinueOnError)
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
 	configPath := fs.String("config", "", "optional JSON review rules config")
-	format := fs.String("format", "markdown", "output format: markdown, json, sarif, or comment")
+	format := fs.String("format", "markdown", "output format: markdown, json, sarif, comment, or check-run")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -321,6 +322,11 @@ func runReviewDiff(args []string) error {
 	if *format == "comment" {
 		fmt.Print(prcomment.Markdown(findings))
 		return nil
+	}
+	if *format == "check-run" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(checkrun.FromFindings(findings))
 	}
 	fmt.Print(diffreview.Markdown(findings))
 	return nil
@@ -885,7 +891,7 @@ Usage:
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . [--version v0.1.0] [--policy examples/release-policy.json] --output codex-oss-application.md
   oss-maintainer-kit github-export --repo owner/name --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
-  oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment]
+  oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment|check-run]
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json

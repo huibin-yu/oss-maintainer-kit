@@ -134,6 +134,42 @@ func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
 	}
 }
 
+func TestRunReviewDiffCheckRunFormat(t *testing.T) {
+	diffPath := filepath.Join(t.TempDir(), "pr.diff")
+	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,2 +1,3 @@
+ package main
++const token = "sk_live_123456"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"review-diff",
+			"--diff", diffPath,
+			"--format", "check-run",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	for _, want := range []string{
+		`"name": "oss-maintainer-kit review-diff"`,
+		`"status": "completed"`,
+		`"conclusion": "failure"`,
+		`"annotations"`,
+		`"annotation_level": "failure"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q:\n%s", want, output)
+		}
+	}
+}
+
 func TestRunGitHubExportUsesPaginationFilters(t *testing.T) {
 	var state, since, perPage string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

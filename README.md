@@ -24,6 +24,7 @@
 - `review-diff --format sarif`：输出 SARIF 2.1.0，便于接入 GitHub Code Scanning。
 - `review-diff --config`：加载仓库自定义 JSON 规则。
 - `review-diff --format comment`：生成可直接用于 GitHub PR 的 Markdown 评论。
+- `review-diff --format check-run`：生成 GitHub Checks API 可用的 JSON payload，包含 conclusion、summary 和 annotations。
 - `github-comment`：基于稳定 marker 在 GitHub PR 中创建或更新风险检查评论，避免重复刷屏。
 - `ai-review`：生成 Codex/AI PR review prompt，或调用 OpenAI-compatible `/v1/chat/completions`。
 - `test-plan`：根据 PR diff 和本地风险发现生成测试建议、验证命令和 Codex 测试计划 prompt。
@@ -262,6 +263,14 @@ go run ./cmd/oss-maintainer-kit review-diff \
   --format sarif
 ```
 
+输出 GitHub Checks payload：
+
+```bash
+go run ./cmd/oss-maintainer-kit review-diff \
+  --diff examples/pr.diff \
+  --format check-run
+```
+
 生成 PR 评论：
 
 ```bash
@@ -433,6 +442,7 @@ Provider 配置字段说明：
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - GitHub export：通过 REST 或 GraphQL 分页导出真实 issues/PRs，并按 state 和更新时间窗口缩小维护范围。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
+- GitHub Checks：输出 Checks API payload，把本地 PR diff 风险发现转换为 conclusion、summary 和 annotations。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
 - Security report：聚合安全 issue、PR diff 风险发现和仓库治理缺口，并通过 GitHub Actions 上传 Markdown/JSON artifact，为商用安全审查和发布前风险接受提供证据。
