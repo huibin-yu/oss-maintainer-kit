@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/checkrun"
 )
 
 func TestUpsertIssueCommentUpdatesMarkedComment(t *testing.T) {
@@ -77,5 +79,55 @@ func TestUpsertIssueCommentCreatesWhenMarkerMissing(t *testing.T) {
 	}
 	if createdBody != "created body" {
 		t.Fatalf("created body = %q", createdBody)
+	}
+}
+
+func TestCreateCheckRunPostsPayload(t *testing.T) {
+	var requestPath string
+	var payload checkrun.Payload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer gh_test" {
+			t.Fatalf("authorization = %q", got)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/repos/acme/demo/check-runs" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		requestPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":501,"html_url":"https://github.com/acme/demo/runs/501"}`))
+	}))
+	defer server.Close()
+
+	run, err := Client{BaseURL: server.URL, Token: "gh_test"}.CreateCheckRun(context.Background(), "acme/demo", checkrun.Payload{
+		Name:       "oss-maintainer-kit review-diff",
+		HeadSHA:    "abc123",
+		Status:     "completed",
+		Conclusion: "failure",
+		Output: checkrun.Output{
+			Title:   "PR diff 风险检查",
+			Summary: "发现 1 个风险项。",
+			Annotations: []checkrun.Annotation{{
+				Path:            "main.go",
+				StartLine:       3,
+				EndLine:         3,
+				AnnotationLevel: "failure",
+				Message:         "secret",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestPath != "/repos/acme/demo/check-runs" {
+		t.Fatalf("path = %q", requestPath)
+	}
+	if payload.HeadSHA != "abc123" || payload.Conclusion != "failure" || len(payload.Output.Annotations) != 1 {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if run.ID != 501 || run.HTMLURL == "" {
+		t.Fatalf("run = %#v", run)
 	}
 }

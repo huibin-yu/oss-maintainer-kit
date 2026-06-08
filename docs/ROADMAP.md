@@ -37,5 +37,6 @@
 
 - 支持 GitHub Checks / Markdown comment 输出。
 - 支持将 PR diff 风险发现输出为 GitHub Checks API payload。
+- 支持将 PR diff 风险发现创建为 GitHub Checks run。
 - 支持将 issue triage 维护队列评论创建或更新到指定 GitHub issue。
 - 支持维护趋势指标。

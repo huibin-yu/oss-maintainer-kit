@@ -82,6 +82,8 @@ func run(args []string) error {
 		return runAIReview(args[1:])
 	case "test-plan":
 		return runTestPlan(args[1:])
+	case "github-check-run":
+		return runGitHubCheckRun(args[1:])
 	case "github-comment":
 		return runGitHubComment(args[1:])
 	case "github-triage-comment":
@@ -498,6 +500,47 @@ func runGitHubComment(args []string) error {
 	return nil
 }
 
+func runGitHubCheckRun(args []string) error {
+	fs := flag.NewFlagSet("github-check-run", flag.ContinueOnError)
+	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	sha := fs.String("sha", "", "GitHub commit SHA for the check run head")
+	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
+	configPath := fs.String("config", "", "optional JSON review rules config")
+	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
+	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	diff, err := readAll(*diffPath)
+	if err != nil {
+		return err
+	}
+	cfg, err := loadReviewConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	findings, err := diffreview.ReviewWithConfig(strings.NewReader(diff), cfg)
+	if err != nil {
+		return err
+	}
+	payload := checkrun.FromFindings(findings)
+	payload.HeadSHA = *sha
+	run, err := github.Client{
+		BaseURL: *baseURL,
+		Token:   os.Getenv(*tokenEnv),
+	}.CreateCheckRun(context.Background(), *repo, payload)
+	if err != nil {
+		return err
+	}
+	if run.HTMLURL != "" {
+		fmt.Println(run.HTMLURL)
+		return nil
+	}
+	fmt.Printf("created check run %d\n", run.ID)
+	return nil
+}
+
 func runGitHubTriageComment(args []string) error {
 	fs := flag.NewFlagSet("github-triage-comment", flag.ContinueOnError)
 	repo := fs.String("repo", "", "GitHub repository in owner/name format")
@@ -894,6 +937,7 @@ Usage:
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment|check-run]
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
+  oss-maintainer-kit github-check-run --repo owner/name --sha HEAD_SHA --diff examples/pr.diff [--config examples/review-rules.json]
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
   oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json`)
 }

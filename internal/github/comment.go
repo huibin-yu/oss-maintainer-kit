@@ -11,12 +11,31 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/checkrun"
 )
 
 type Comment struct {
 	ID      int64  `json:"id"`
 	Body    string `json:"body"`
 	HTMLURL string `json:"html_url"`
+}
+
+type CheckRun struct {
+	ID      int64  `json:"id"`
+	HTMLURL string `json:"html_url"`
+}
+
+func (c Client) CreateCheckRun(ctx context.Context, repo string, payload checkrun.Payload) (CheckRun, error) {
+	if strings.TrimSpace(repo) == "" {
+		return CheckRun{}, fmt.Errorf("repo is required")
+	}
+	if strings.TrimSpace(payload.HeadSHA) == "" {
+		return CheckRun{}, fmt.Errorf("head sha is required")
+	}
+	var run CheckRun
+	err := c.requestJSON(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/check-runs", repo), nil, payload, &run)
+	return run, err
 }
 
 func (c Client) UpsertIssueComment(ctx context.Context, repo string, number int, marker, body string) (Comment, error) {

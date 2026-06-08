@@ -10,6 +10,7 @@ const maxAnnotations = 50
 
 type Payload struct {
 	Name       string `json:"name"`
+	HeadSHA    string `json:"head_sha,omitempty"`
 	Status     string `json:"status"`
 	Conclusion string `json:"conclusion"`
 	Output     Output `json:"output"`

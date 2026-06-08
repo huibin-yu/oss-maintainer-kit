@@ -58,6 +58,62 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	}
 }
 
+func TestRunGitHubCheckRunCreatesCheckRun(t *testing.T) {
+	var payload struct {
+		Name       string `json:"name"`
+		HeadSHA    string `json:"head_sha"`
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+		Output     struct {
+			Annotations []struct {
+				AnnotationLevel string `json:"annotation_level"`
+			} `json:"annotations"`
+		} `json:"output"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/repos/acme/demo/check-runs" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":601,"html_url":"https://github.com/acme/demo/runs/601"}`))
+	}))
+	defer server.Close()
+
+	diffPath := filepath.Join(t.TempDir(), "pr.diff")
+	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,2 +1,3 @@
+ package main
++const token = "sk_live_123456"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-check-run",
+			"--repo", "acme/demo",
+			"--sha", "abc123",
+			"--diff", diffPath,
+			"--base-url", server.URL,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if payload.HeadSHA != "abc123" || payload.Conclusion != "failure" || len(payload.Output.Annotations) != 1 {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !strings.Contains(output, "https://github.com/acme/demo/runs/601") {
+		t.Fatalf("unexpected output: %s", output)
+	}
+}
+
 func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
 	var createdBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
