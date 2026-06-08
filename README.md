@@ -240,6 +240,8 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-export \
 
 `.github/workflows/security-report.yml` 会在 PR 和 main 分支上导出当前仓库 open issues，PR 场景下生成 diff，执行 `security-report --fail-on-risk`，并上传 Markdown/JSON 安全报告 artifact。
 
+`.github/workflows/review-diff.yml` 会在 PR 上生成 diff，上传 SARIF 到 Code Scanning，并用 `github-check-run` 创建 GitHub Checks run，把风险发现展示为 annotations。
+
 `.github/workflows/release-artifacts.yml` 会在 `v*` tag 上构建 Linux、macOS、Windows CLI，生成 SPDX SBOM、SHA256 checksums，并用 GitHub artifact attestation 生成 provenance。
 
 离线检查 PR diff：
@@ -452,7 +454,7 @@ Provider 配置字段说明：
 - GitHub comment upsert：使用 GitHub issue comments API 更新已有 Bot 评论或创建新评论，形成 PR review 自动化闭环。
 - GitHub export：通过 REST 或 GraphQL 分页导出真实 issues/PRs，并按 state 和更新时间窗口缩小维护范围。
 - Code scanning：通过 SARIF 输出接入 GitHub Code Scanning。
-- GitHub Checks：输出 Checks API payload，并可直接创建 check run，把本地 PR diff 风险发现转换为 conclusion、summary 和 annotations。
+- GitHub Checks：输出 Checks API payload，并可在 review-diff workflow 中直接创建 check run，把本地 PR diff 风险发现转换为 conclusion、summary 和 annotations。
 - Vulnerability scanning：通过 `golang/govulncheck-action` 在 PR、main 和定时任务中扫描 Go package 漏洞。
 - Security posture：通过 `ossf/scorecard-action` 输出 SARIF 并发布 OpenSSF Scorecard 结果。
 - Security report：聚合安全 issue、PR diff 风险发现和仓库治理缺口，并通过 GitHub Actions 上传 Markdown/JSON artifact，为商用安全审查和发布前风险接受提供证据。

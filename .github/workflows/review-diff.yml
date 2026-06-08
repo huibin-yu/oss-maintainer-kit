@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  checks: write
 
 jobs:
   scan:
@@ -23,6 +24,10 @@ jobs:
         run: go run ./cmd/oss-maintainer-kit review-diff --diff pr.diff --config examples/review-rules.json --format sarif > oss-maintainer-kit.sarif
       - name: Build markdown comment
         run: go run ./cmd/oss-maintainer-kit review-diff --diff pr.diff --config examples/review-rules.json --format comment > review-comment.md
+      - name: Create GitHub Checks run
+        run: go run ./cmd/oss-maintainer-kit github-check-run --repo ${{ github.repository }} --sha ${{ github.event.pull_request.head.sha }} --diff pr.diff --config examples/review-rules.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:

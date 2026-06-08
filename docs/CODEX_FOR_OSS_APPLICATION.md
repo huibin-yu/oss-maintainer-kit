@@ -22,6 +22,7 @@
 - 支持仓库自定义规则，让不同项目按自己的风险模型调整审查策略。
 - 生成稳定 Markdown PR 评论，便于后续接入 GitHub Bot 自动更新。
 - 生成 GitHub Checks API payload，并可直接创建 check run，把 PR diff 风险发现转换为 conclusion、summary 和 annotations。
+- 在 review-diff GitHub Actions 中自动创建 GitHub Checks run，让 PR 页面直接展示风险 annotations。
 - 通过稳定 marker 创建或更新 GitHub PR 评论，避免 Bot 重复刷评论。
 - 输出 SARIF，便于把风险扫描接入 GitHub Code Scanning。
 - 通过 govulncheck 在 PR、main 和定时任务中扫描 Go 漏洞，增强供应链安全证据。
