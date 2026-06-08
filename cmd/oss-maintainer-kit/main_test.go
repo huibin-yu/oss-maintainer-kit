@@ -323,6 +323,49 @@ func TestRunReleaseSummaryPromptOnly(t *testing.T) {
 	}
 }
 
+func TestRunReleaseDraftOutputsGitHubReleaseJSON(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"},
+		{"number":2,"title":"draft change","body":"","state":"open","author":"bob","labels":[],"merged":false,"created_at":"2026-06-02T00:00:00Z","updated_at":"2026-06-02T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"release-draft",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v1.0.0",
+			"--previous-tag", "v0.9.0",
+			"--prerelease",
+			"--format", "json",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var payload struct {
+		TagName    string `json:"tag_name"`
+		Name       string `json:"name"`
+		Body       string `json:"body"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+	}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.TagName != "v1.0.0" || payload.Name != "demo v1.0.0" || !payload.Draft || !payload.Prerelease {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+	if !strings.Contains(payload.Body, "比较范围：`v0.9.0...v1.0.0`") || !strings.Contains(payload.Body, "feat: add export (#1)") {
+		t.Fatalf("unexpected release body: %s", payload.Body)
+	}
+	if strings.Contains(payload.Body, "draft change") {
+		t.Fatalf("unmerged PR leaked into release body: %s", payload.Body)
+	}
+}
+
 func TestRunReleaseSummaryCallsProvider(t *testing.T) {
 	var seenUserPrompt string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -23,6 +23,7 @@ import (
 	"github.com/yuhuibin/oss-maintainer-kit/internal/input"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/prcomment"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/releasecheck"
+	"github.com/yuhuibin/oss-maintainer-kit/internal/releasedraft"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/releasesummary"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/report"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/reviewconfig"
@@ -56,6 +57,8 @@ func run(args []string) error {
 		return runReleaseNotes(args[1:])
 	case "release-summary":
 		return runReleaseSummary(args[1:])
+	case "release-draft":
+		return runReleaseDraft(args[1:])
 	case "release-check":
 		return runReleaseCheck(args[1:])
 	case "report":
@@ -207,6 +210,47 @@ func runReleaseSummary(args []string) error {
 		return nil
 	}
 	return os.WriteFile(*output, []byte(content), 0644)
+}
+
+func runReleaseDraft(args []string) error {
+	fs := flag.NewFlagSet("release-draft", flag.ContinueOnError)
+	inputPath := fs.String("input", "examples/pulls.json", "pull requests JSON file")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	version := fs.String("version", "v0.1.0", "release version")
+	previousTag := fs.String("previous-tag", "", "previous release tag for compare range")
+	format := fs.String("format", "markdown", "output format: markdown or json")
+	output := fs.String("output", "", "write release draft to file")
+	prerelease := fs.Bool("prerelease", false, "mark the GitHub release payload as prerelease")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	pulls, err := input.PullRequests(*inputPath)
+	if err != nil {
+		return err
+	}
+	draft := releasedraft.Build(releasedraft.Input{
+		Project:     *project,
+		Version:     *version,
+		PreviousTag: *previousTag,
+		Pulls:       pulls,
+		Prerelease:  *prerelease,
+	})
+	var content []byte
+	if *format == "json" {
+		content, err = json.MarshalIndent(draft, "", "  ")
+		if err != nil {
+			return err
+		}
+		content = append(content, '\n')
+	} else {
+		content = []byte(releasedraft.Markdown(draft))
+	}
+	if *output == "" {
+		fmt.Print(string(content))
+		return nil
+	}
+	return os.WriteFile(*output, content, 0644)
 }
 
 func runReleaseCheck(args []string) error {
@@ -924,6 +968,7 @@ Usage:
   oss-maintainer-kit triage-comment --input examples/issues.json [--output triage-comment.md]
   oss-maintainer-kit release-notes --input examples/pulls.json --version v0.1.0
   oss-maintainer-kit release-summary --input examples/pulls.json --version v0.1.0 [--provider-config examples/ai-provider.json] --prompt-only
+  oss-maintainer-kit release-draft --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9] [--format markdown|json]
   oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --version v0.1.0 [--policy examples/release-policy.json] [--fail-on-blocked]
   oss-maintainer-kit report --issues examples/issues.json --pulls examples/pulls.json --output report.md
   oss-maintainer-kit health --root .
