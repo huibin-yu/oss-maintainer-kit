@@ -112,8 +112,12 @@ func (c Client) UpdateIssueComment(ctx context.Context, repo string, id int64, b
 	if id <= 0 {
 		return Comment{}, fmt.Errorf("comment id is required")
 	}
+	path, err := repoPath(repo, fmt.Sprintf("issues/comments/%d", id))
+	if err != nil {
+		return Comment{}, err
+	}
 	var comment Comment
-	err := c.requestJSON(ctx, http.MethodPatch, fmt.Sprintf("/repos/%s/issues/comments/%d", repo, id), nil, commentRequest{Body: body}, &comment)
+	err = c.requestJSON(ctx, http.MethodPatch, path, nil, commentRequest{Body: body}, &comment)
 	return comment, err
 }
 

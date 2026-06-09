@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -148,7 +149,7 @@ func runTriageComment(args []string) error {
 		fmt.Print(content)
 		return nil
 	}
-	return os.WriteFile(*output, []byte(content), 0644)
+	return writeFile(*output, []byte(content), 0644)
 }
 
 func runReleaseNotes(args []string) error {
@@ -196,9 +197,13 @@ func runReleaseSummary(args []string) error {
 		if err != nil {
 			return err
 		}
+		apiKey, err := aiKeyFromEnv(provider.APIKeyEnv)
+		if err != nil {
+			return err
+		}
 		result, err := ai.Client{
 			BaseURL: provider.BaseURL,
-			APIKey:  os.Getenv(provider.APIKeyEnv),
+			APIKey:  apiKey,
 			Model:   provider.Model,
 			Retries: provider.Retries,
 		}.Complete(context.Background(), "你是严谨的开源项目维护者，负责生成发布摘要。", summary.Prompt)
@@ -214,7 +219,7 @@ func runReleaseSummary(args []string) error {
 		}
 		return nil
 	}
-	return os.WriteFile(*output, []byte(content), 0644)
+	return writeFile(*output, []byte(content), 0644)
 }
 
 func runReleaseDraft(args []string) error {
@@ -258,7 +263,7 @@ func runReleaseDraft(args []string) error {
 		fmt.Print(string(content))
 		return nil
 	}
-	return os.WriteFile(*output, content, 0644)
+	return writeFile(*output, content, 0644)
 }
 
 func runReleaseCheck(args []string) error {
@@ -310,7 +315,7 @@ func runReleaseCheck(args []string) error {
 	}
 	if *output == "" {
 		fmt.Print(string(content))
-	} else if err := os.WriteFile(*output, content, 0644); err != nil {
+	} else if err := writeFile(*output, content, 0644); err != nil {
 		return err
 	}
 	if *failOnBlocked && !result.Ready {
@@ -342,7 +347,7 @@ func runReport(args []string) error {
 		fmt.Print(doc)
 		return nil
 	}
-	return os.WriteFile(*output, []byte(doc), 0644)
+	return writeFile(*output, []byte(doc), 0644)
 }
 
 func runReviewDiff(args []string) error {
@@ -407,10 +412,6 @@ func runAIReview(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	provider, err := providerFromFlags(fs, *providerPath, *baseURL, *model, *apiKeyEnv, *retries)
-	if err != nil {
-		return err
-	}
 
 	diff, err := readAll(*diffPath)
 	if err != nil {
@@ -429,9 +430,17 @@ func runAIReview(args []string) error {
 	if *promptOnly {
 		content = ai.Prompt(req)
 	} else {
+		provider, err := providerFromFlags(fs, *providerPath, *baseURL, *model, *apiKeyEnv, *retries)
+		if err != nil {
+			return err
+		}
+		apiKey, err := aiKeyFromEnv(provider.APIKeyEnv)
+		if err != nil {
+			return err
+		}
 		result, err := ai.Client{
 			BaseURL: provider.BaseURL,
-			APIKey:  os.Getenv(provider.APIKeyEnv),
+			APIKey:  apiKey,
 			Model:   provider.Model,
 			Retries: provider.Retries,
 		}.Review(context.Background(), req)
@@ -447,7 +456,7 @@ func runAIReview(args []string) error {
 		}
 		return nil
 	}
-	return os.WriteFile(*output, []byte(content), 0644)
+	return writeFile(*output, []byte(content), 0644)
 }
 
 func providerFromFlags(fs *flag.FlagSet, path, baseURL, model, apiKeyEnv string, retries int) (ai.ProviderConfig, error) {
@@ -518,7 +527,7 @@ func runTestPlan(args []string) error {
 		fmt.Print(string(content))
 		return nil
 	}
-	return os.WriteFile(*output, content, 0644)
+	return writeFile(*output, content, 0644)
 }
 
 func runGitHubComment(args []string) error {
@@ -530,6 +539,16 @@ func runGitHubComment(args []string) error {
 	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
 	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateRepo(*repo); err != nil {
+		return err
+	}
+	if *number <= 0 {
+		return fmt.Errorf("pull request number is required")
+	}
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
 		return err
 	}
 
@@ -546,10 +565,6 @@ func runGitHubComment(args []string) error {
 		return err
 	}
 	body := prcomment.Markdown(findings)
-	token, err := githubTokenFromEnv(*tokenEnv)
-	if err != nil {
-		return err
-	}
 	comment, err := github.Client{
 		BaseURL: *baseURL,
 		Token:   token,
@@ -576,6 +591,16 @@ func runGitHubCheckRun(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateRepo(*repo); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*sha) == "" {
+		return fmt.Errorf("head sha is required")
+	}
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return err
+	}
 
 	diff, err := readAll(*diffPath)
 	if err != nil {
@@ -591,10 +616,6 @@ func runGitHubCheckRun(args []string) error {
 	}
 	payload := checkrun.FromFindings(findings)
 	payload.HeadSHA = *sha
-	token, err := githubTokenFromEnv(*tokenEnv)
-	if err != nil {
-		return err
-	}
 	run, err := github.Client{
 		BaseURL: *baseURL,
 		Token:   token,
@@ -624,6 +645,17 @@ func runGitHubRelease(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateRepo(*repo); err != nil {
+		return err
+	}
+	var token string
+	if !*dryRun {
+		var err error
+		token, err = githubTokenFromEnv(*tokenEnv)
+		if err != nil {
+			return fmt.Errorf("%w; use --dry-run to preview the payload without a token", err)
+		}
+	}
 
 	pulls, err := input.PullRequests(*inputPath)
 	if err != nil {
@@ -647,10 +679,6 @@ func runGitHubRelease(args []string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(payload)
-	}
-	token, err := githubTokenFromEnv(*tokenEnv)
-	if err != nil {
-		return fmt.Errorf("%w; use --dry-run to preview the payload without a token", err)
 	}
 	release, err := github.Client{
 		BaseURL: *baseURL,
@@ -677,16 +705,22 @@ func runGitHubTriageComment(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateRepo(*repo); err != nil {
+		return err
+	}
+	if *number <= 0 {
+		return fmt.Errorf("issue or pull request number is required")
+	}
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return err
+	}
 
 	issues, err := input.Issues(*inputPath)
 	if err != nil {
 		return err
 	}
 	body := triagecomment.Markdown(triage.RuleSet{}.Issues(issues))
-	token, err := githubTokenFromEnv(*tokenEnv)
-	if err != nil {
-		return err
-	}
 	comment, err := github.Client{
 		BaseURL: *baseURL,
 		Token:   token,
@@ -717,6 +751,30 @@ func githubTokenFromEnv(name string) (string, error) {
 	return token, nil
 }
 
+func githubAPITokenFromEnv(name string) (string, error) {
+	token := os.Getenv(name)
+	if strings.TrimSpace(token) == "" {
+		return "", fmt.Errorf("%s is required for GitHub API calls", name)
+	}
+	return token, nil
+}
+
+func validateRepo(repo string) error {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return fmt.Errorf("repo is required, expected owner/name")
+	}
+	return nil
+}
+
+func aiKeyFromEnv(name string) (string, error) {
+	token := os.Getenv(name)
+	if strings.TrimSpace(token) == "" {
+		return "", fmt.Errorf("%s is required for AI provider calls; use --prompt-only to preview the prompt without a token", name)
+	}
+	return token, nil
+}
+
 func validateFormat(format string, allowed ...string) error {
 	for _, value := range allowed {
 		if format == value {
@@ -738,6 +796,18 @@ func readAll(path string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func writeFile(path string, data []byte, perm os.FileMode) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("output path is required")
+	}
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, data, perm)
 }
 
 func runHealth(args []string) error {
@@ -770,6 +840,12 @@ func runHealthSnapshot(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if strings.TrimSpace(*project) == "" {
+		return fmt.Errorf("project is required")
+	}
+	if strings.TrimSpace(*history) == "" {
+		return fmt.Errorf("history path is required")
+	}
 
 	gitRef := *ref
 	if gitRef == "" {
@@ -796,6 +872,9 @@ func runHealthTrend(args []string) error {
 	}
 	if err := validateFormat(*format, "markdown", "json"); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*history) == "" {
+		return fmt.Errorf("history path is required")
 	}
 
 	snapshots, err := healthtrend.Load(*history)
@@ -866,7 +945,7 @@ func runSecurityReport(args []string) error {
 	}
 	if *output == "" {
 		fmt.Print(string(content))
-	} else if err := os.WriteFile(*output, content, 0644); err != nil {
+	} else if err := writeFile(*output, content, 0644); err != nil {
 		return err
 	}
 	if *failOnRisk && report.Blocked {
@@ -910,7 +989,7 @@ func runSBOM(args []string) error {
 		fmt.Print(string(data))
 		return nil
 	}
-	return os.WriteFile(*output, data, 0644)
+	return writeFile(*output, data, 0644)
 }
 
 func runCodexPlan(args []string) error {
@@ -938,7 +1017,7 @@ func runCodexPlan(args []string) error {
 		fmt.Print(doc)
 		return nil
 	}
-	return os.WriteFile(*output, []byte(doc), 0644)
+	return writeFile(*output, []byte(doc), 0644)
 }
 
 func runApplicationPack(args []string) error {
@@ -993,7 +1072,7 @@ func runApplicationPack(args []string) error {
 		fmt.Print(doc)
 		return nil
 	}
-	return os.WriteFile(*output, []byte(doc), 0644)
+	return writeFile(*output, []byte(doc), 0644)
 }
 
 func runGitHubExport(args []string) error {
@@ -1010,6 +1089,9 @@ func runGitHubExport(args []string) error {
 	graphqlURL := fs.String("graphql-url", "", "GitHub GraphQL API URL, defaults to base-url + /graphql")
 	output := fs.String("output", "", "write JSON output to file")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateGitHubExportOptions(*kind, *api, *state, *limit, *perPage); err != nil {
 		return err
 	}
 
@@ -1042,6 +1124,11 @@ func runGitHubExport(args []string) error {
 			return fmt.Errorf("unknown kind %q", *kind)
 		}
 	case "graphql":
+		token, err := githubAPITokenFromEnv(*tokenEnv)
+		if err != nil {
+			return err
+		}
+		client.Token = token
 		if *graphqlURL != "" {
 			client.BaseURL = strings.TrimSuffix(*graphqlURL, "/graphql")
 		}
@@ -1069,7 +1156,35 @@ func runGitHubExport(args []string) error {
 		fmt.Print(string(encoded))
 		return nil
 	}
-	return os.WriteFile(*output, encoded, 0644)
+	return writeFile(*output, encoded, 0644)
+}
+
+func validateGitHubExportOptions(kind, api, state string, limit, perPage int) error {
+	if err := validateChoice("kind", kind, "issues", "pulls"); err != nil {
+		return err
+	}
+	if err := validateChoice("api", api, "rest", "graphql"); err != nil {
+		return err
+	}
+	if err := validateChoice("state", state, "open", "closed", "all"); err != nil {
+		return err
+	}
+	if limit <= 0 {
+		return fmt.Errorf("limit must be greater than 0")
+	}
+	if perPage < 1 || perPage > 100 {
+		return fmt.Errorf("per-page must be between 1 and 100")
+	}
+	return nil
+}
+
+func validateChoice(name, value string, allowed ...string) error {
+	for _, item := range allowed {
+		if value == item {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown %s %q, allowed: %s", name, value, strings.Join(allowed, ", "))
 }
 
 func usage() {

@@ -95,3 +95,28 @@ func TestReviewDoesNotRetryClientError(t *testing.T) {
 		t.Fatalf("calls=%d, want 1", calls)
 	}
 }
+
+func TestReviewFormatsProviderErrorJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"Invalid API key","type":"invalid_request_error","code":"invalid_api_key"}}`))
+	}))
+	defer server.Close()
+
+	_, err := Client{BaseURL: server.URL, APIKey: "test-key", Model: "test-model"}.Review(context.Background(), ReviewRequest{
+		Project: "demo",
+		Diff:    "+fmt.Println(\"hello\")",
+	})
+	if err == nil {
+		t.Fatal("expected provider error")
+	}
+	for _, want := range []string{"ai provider authentication failed", "Invalid API key", "invalid_request_error", "invalid_api_key"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q in error: %v", want, err)
+		}
+	}
+	if strings.Contains(err.Error(), `{"error"`) {
+		t.Fatalf("error should not expose raw JSON: %v", err)
+	}
+}

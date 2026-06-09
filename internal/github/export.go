@@ -429,7 +429,11 @@ type graphqlRequest struct {
 }
 
 type graphqlError struct {
-	Message string `json:"message"`
+	Message    string `json:"message"`
+	Path       []any  `json:"path"`
+	Extensions struct {
+		Code string `json:"code"`
+	} `json:"extensions"`
 }
 
 type graphqlPageInfo struct {
@@ -511,9 +515,35 @@ func graphqlErrors(errors []graphqlError) error {
 	}
 	messages := make([]string, 0, len(errors))
 	for _, item := range errors {
-		messages = append(messages, item.Message)
+		parts := []string{}
+		if item.Message != "" {
+			parts = append(parts, item.Message)
+		}
+		if path := graphqlErrorPath(item.Path); path != "" {
+			parts = append(parts, path)
+		}
+		if item.Extensions.Code != "" {
+			parts = append(parts, item.Extensions.Code)
+		}
+		if len(parts) > 0 {
+			messages = append(messages, strings.Join(parts, " "))
+		}
+	}
+	if len(messages) == 0 {
+		return fmt.Errorf("github graphql: unknown error")
 	}
 	return fmt.Errorf("github graphql: %s", strings.Join(messages, "; "))
+}
+
+func graphqlErrorPath(values []any) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		text := fmt.Sprint(value)
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, ".")
 }
 
 const graphqlIssuesQuery = `

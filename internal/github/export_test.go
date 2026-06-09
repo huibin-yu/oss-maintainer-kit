@@ -278,12 +278,17 @@ func TestPullRequestsGraphQLMapsMergedState(t *testing.T) {
 func TestGraphQLErrorsReturnMessage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"errors":[{"message":"bad query"}]}`))
+		_, _ = w.Write([]byte(`{"errors":[{"message":"bad query","path":["repository","issues"],"extensions":{"code":"FORBIDDEN"}}]}`))
 	}))
 	defer server.Close()
 
 	_, err := Client{BaseURL: server.URL}.IssuesGraphQL(context.Background(), "acme/demo", ExportOptions{})
 	if err == nil {
 		t.Fatal("expected graphql error")
+	}
+	for _, want := range []string{"bad query", "repository.issues", "FORBIDDEN"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q in error: %v", want, err)
+		}
 	}
 }

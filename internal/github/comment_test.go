@@ -201,6 +201,13 @@ func TestWriteMethodsRejectInvalidRepoBeforeRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "update issue comment",
+			run: func() error {
+				_, err := client.UpdateIssueComment(context.Background(), "acme", 10, "body")
+				return err
+			},
+		},
+		{
 			name: "check run",
 			run: func() error {
 				_, err := client.CreateCheckRun(context.Background(), "acme", checkrun.Payload{HeadSHA: "abc123"})

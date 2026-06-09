@@ -386,6 +386,90 @@ func TestRunGitHubTriageCommentRequiresToken(t *testing.T) {
 	}
 }
 
+func TestRunGitHubWriteCommandsValidateArgumentsBeforeReadingInput(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "github-comment-pr",
+			args: []string{"github-comment", "--repo", "acme/demo", "--pr", "0", "--diff", missingPath},
+			want: "pull request number is required",
+		},
+		{
+			name: "github-check-run-sha",
+			args: []string{"github-check-run", "--repo", "acme/demo", "--sha", "", "--diff", missingPath},
+			want: "head sha is required",
+		},
+		{
+			name: "github-triage-comment-issue",
+			args: []string{"github-triage-comment", "--repo", "acme/demo", "--issue", "0", "--input", missingPath},
+			want: "issue or pull request number is required",
+		},
+		{
+			name: "github-release-repo",
+			args: []string{"github-release", "--repo", "invalid", "--input", missingPath},
+			want: "expected owner/name",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(tc.args)
+			if err == nil {
+				t.Fatal("expected argument validation error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if strings.Contains(err.Error(), "missing.json") {
+				t.Fatalf("validated too late after reading input: %v", err)
+			}
+		})
+	}
+}
+
+func TestRunGitHubWriteCommandsValidateTokenBeforeReadingInput(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "github-comment",
+			args: []string{"github-comment", "--repo", "acme/demo", "--pr", "9", "--diff", missingPath},
+		},
+		{
+			name: "github-check-run",
+			args: []string{"github-check-run", "--repo", "acme/demo", "--sha", "abc123", "--diff", missingPath},
+		},
+		{
+			name: "github-triage-comment",
+			args: []string{"github-triage-comment", "--repo", "acme/demo", "--issue", "42", "--input", missingPath},
+		},
+		{
+			name: "github-release",
+			args: []string{"github-release", "--repo", "acme/demo", "--input", missingPath},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append(tc.args, "--token-env", "MISSING_GITHUB_TOKEN_BEFORE_INPUT_TEST")
+			err := run(args)
+			if err == nil {
+				t.Fatal("expected missing token error")
+			}
+			if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_BEFORE_INPUT_TEST") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if strings.Contains(err.Error(), "missing.json") {
+				t.Fatalf("validated token too late after reading input: %v", err)
+			}
+		})
+	}
+}
+
 func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
@@ -412,6 +496,30 @@ func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("missing %q:\n%s", want, output)
 		}
+	}
+}
+
+func TestRunCommandOutputCreatesParentDirectory(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":7,"title":"token leak in debug logs","body":"A secret is printed.","state":"open","author":"alice","labels":["bug"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	outputPath := filepath.Join(root, "nested", "triage-comment.md")
+
+	err := run([]string{
+		"triage-comment",
+		"--input", filepath.Join(root, "issues.json"),
+		"--output", outputPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "oss-maintainer-kit:triage") {
+		t.Fatalf("unexpected output: %s", data)
 	}
 }
 
@@ -490,6 +598,73 @@ func TestRunGitHubExportUsesPaginationFilters(t *testing.T) {
 	}
 }
 
+func TestRunGitHubExportRejectsInvalidOptionsBeforeRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("invalid options should fail before request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "kind",
+			args: []string{"--kind", "milestones"},
+			want: `unknown kind "milestones"`,
+		},
+		{
+			name: "api",
+			args: []string{"--api", "soap"},
+			want: `unknown api "soap"`,
+		},
+		{
+			name: "graphql-kind-before-token",
+			args: []string{"--api", "graphql", "--kind", "milestones", "--token-env", "MISSING_GITHUB_TOKEN_FOR_KIND_ORDER"},
+			want: `unknown kind "milestones"`,
+		},
+		{
+			name: "state",
+			args: []string{"--state", "merged"},
+			want: `unknown state "merged"`,
+		},
+		{
+			name: "limit",
+			args: []string{"--limit", "0"},
+			want: "limit must be greater than 0",
+		},
+		{
+			name: "per-page-low",
+			args: []string{"--per-page", "0"},
+			want: "per-page must be between 1 and 100",
+		},
+		{
+			name: "per-page-high",
+			args: []string{"--per-page", "101"},
+			want: "per-page must be between 1 and 100",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := []string{
+				"github-export",
+				"--repo", "acme/demo",
+				"--kind", "issues",
+				"--base-url", server.URL,
+			}
+			args = append(args, tc.args...)
+			err := run(args)
+			if err == nil {
+				t.Fatal("expected invalid option error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 	var path string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -503,6 +678,7 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 		}`))
 	}))
 	defer server.Close()
+	t.Setenv("GITHUB_TOKEN", "gh_test")
 
 	output := captureStdout(t, func() {
 		err := run([]string{
@@ -522,6 +698,32 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 	}
 	if !strings.Contains(output, `"author": "alice"`) {
 		t.Fatalf("missing graphql issue: %s", output)
+	}
+}
+
+func TestRunGitHubExportGraphQLRequiresToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing token should fail before calling GitHub GraphQL API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	err := run([]string{
+		"github-export",
+		"--repo", "acme/demo",
+		"--kind", "issues",
+		"--api", "graphql",
+		"--graphql-url", server.URL + "/graphql",
+		"--token-env", "MISSING_GITHUB_TOKEN_FOR_GRAPHQL_TEST",
+		"--limit", "1",
+	})
+	if err == nil {
+		t.Fatal("expected missing token error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_FOR_GRAPHQL_TEST") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "GitHub API calls") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -715,6 +917,36 @@ func TestRunReleaseSummaryCallsProvider(t *testing.T) {
 	}
 }
 
+func TestRunReleaseSummaryRequiresAPIKeyWhenCallingProvider(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing AI key should fail before calling provider: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "provider.json", `{
+		"base_url": "`+server.URL+`",
+		"model": "summary-model",
+		"api_key_env": "MISSING_SUMMARY_API_KEY"
+	}`)
+
+	err := run([]string{
+		"release-summary",
+		"--input", filepath.Join(root, "pulls.json"),
+		"--provider-config", filepath.Join(root, "provider.json"),
+		"--prompt-only=false",
+	})
+	if err == nil {
+		t.Fatal("expected missing API key error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_SUMMARY_API_KEY") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunAIReviewUsesProviderConfigAndFlagOverrides(t *testing.T) {
 	var calls int
 	var seenModel string
@@ -773,6 +1005,68 @@ func TestRunAIReviewUsesProviderConfigAndFlagOverrides(t *testing.T) {
 	}
 	if !strings.Contains(output, "review ok") {
 		t.Fatalf("missing review output: %s", output)
+	}
+}
+
+func TestRunAIReviewPromptOnlyDoesNotRequireProviderConfig(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "provider.json", `{`)
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++fmt.Println("hello")
+`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"ai-review",
+			"--diff", filepath.Join(root, "pr.diff"),
+			"--provider-config", filepath.Join(root, "provider.json"),
+			"--prompt-only",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "你是开源项目维护者的 PR review 助手") || !strings.Contains(output, "+fmt.Println") {
+		t.Fatalf("unexpected prompt output: %s", output)
+	}
+}
+
+func TestRunAIReviewRequiresAPIKeyWhenCallingProvider(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing AI key should fail before calling provider: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "provider.json", `{
+		"base_url": "`+server.URL+`",
+		"model": "review-model",
+		"api_key_env": "MISSING_REVIEW_API_KEY"
+	}`)
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++fmt.Println("hello")
+`)
+
+	err := run([]string{
+		"ai-review",
+		"--diff", filepath.Join(root, "pr.diff"),
+		"--provider-config", filepath.Join(root, "provider.json"),
+		"--prompt-only=false",
+	})
+	if err == nil {
+		t.Fatal("expected missing API key error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_REVIEW_API_KEY") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1135,6 +1429,43 @@ func TestRunHealthSnapshotAndTrend(t *testing.T) {
 		if !strings.Contains(trend, want) {
 			t.Fatalf("missing %q:\n%s", want, trend)
 		}
+	}
+}
+
+func TestRunHealthSnapshotAndTrendRejectInvalidArguments(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalHealthyRepo(t, root)
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "snapshot-project",
+			args: []string{"health-snapshot", "--root", root, "--project", "", "--history", filepath.Join(root, "history.jsonl")},
+			want: "project is required",
+		},
+		{
+			name: "snapshot-history",
+			args: []string{"health-snapshot", "--root", root, "--project", "demo", "--history", ""},
+			want: "history path is required",
+		},
+		{
+			name: "trend-history",
+			args: []string{"health-trend", "--history", ""},
+			want: "history path is required",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(tc.args)
+			if err == nil {
+				t.Fatal("expected invalid argument error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

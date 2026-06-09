@@ -127,7 +127,7 @@ func decodeReviewResponse(resp *http.Response) (ReviewResult, bool, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		err := fmt.Errorf("ai review %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		err := aiProviderError(resp.StatusCode, resp.Status, data)
 		return ReviewResult{}, shouldRetryStatus(resp.StatusCode), err
 	}
 
@@ -139,6 +139,50 @@ func decodeReviewResponse(resp *http.Response) (ReviewResult, bool, error) {
 		return ReviewResult{}, false, fmt.Errorf("ai review returned no choices")
 	}
 	return ReviewResult{Content: out.Choices[0].Message.Content}, false, nil
+}
+
+type providerErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    any    `json:"code"`
+	} `json:"error"`
+}
+
+func aiProviderError(statusCode int, status string, body []byte) error {
+	detail := strings.TrimSpace(string(body))
+	var parsed providerErrorResponse
+	if len(body) > 0 && json.Unmarshal(body, &parsed) == nil {
+		parts := []string{}
+		if parsed.Error.Message != "" {
+			parts = append(parts, parsed.Error.Message)
+		}
+		if parsed.Error.Type != "" {
+			parts = append(parts, parsed.Error.Type)
+		}
+		if parsed.Error.Code != nil {
+			parts = append(parts, fmt.Sprint(parsed.Error.Code))
+		}
+		if len(parts) > 0 {
+			detail = strings.Join(parts, "; ")
+		}
+	}
+	if detail == "" {
+		detail = status
+	}
+
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return fmt.Errorf("ai provider authentication failed (%s): %s", status, detail)
+	case http.StatusForbidden:
+		return fmt.Errorf("ai provider permission denied (%s): %s", status, detail)
+	case http.StatusTooManyRequests:
+		return fmt.Errorf("ai provider rate limited (%s): %s", status, detail)
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return fmt.Errorf("ai provider request validation failed (%s): %s", status, detail)
+	default:
+		return fmt.Errorf("ai provider request failed (%s): %s", status, detail)
+	}
 }
 
 func shouldRetryStatus(status int) bool {
