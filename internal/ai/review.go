@@ -137,7 +137,7 @@ func decodeReviewResponse(resp *http.Response) (ReviewResult, bool, error) {
 
 	var out chatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return ReviewResult{}, false, err
+		return ReviewResult{}, false, fmt.Errorf("decode ai provider response %s: %w", resp.Request.URL.Path, err)
 	}
 	if len(out.Choices) == 0 {
 		return ReviewResult{}, false, fmt.Errorf("ai review returned no choices")

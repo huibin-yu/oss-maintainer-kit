@@ -156,3 +156,24 @@ func TestReviewFormatsProviderErrorJSON(t *testing.T) {
 		t.Fatalf("error should not expose raw JSON: %v", err)
 	}
 }
+
+func TestReviewWrapsSuccessfulResponseDecodeErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>not json</html>"))
+	}))
+	defer server.Close()
+
+	_, err := Client{BaseURL: server.URL, APIKey: "test-key", Model: "test-model"}.Review(context.Background(), ReviewRequest{
+		Project: "demo",
+		Diff:    "+fmt.Println(\"hello\")",
+	})
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+	for _, want := range []string{"decode ai provider response", "/chat/completions"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q in error: %v", want, err)
+		}
+	}
+}
