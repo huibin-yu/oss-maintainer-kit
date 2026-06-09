@@ -63,3 +63,27 @@ func TestBuildSupportsPreviousTagAndPrerelease(t *testing.T) {
 		t.Fatalf("missing empty state:\n%s", draft.Body)
 	}
 }
+
+func TestBuildSanitizesReleaseListItems(t *testing.T) {
+	draft := Build(Input{
+		Project: "demo",
+		Version: "v1.2.0",
+		Pulls: []model.PullRequest{
+			{
+				Number: 1,
+				Title:  "feat: add export\n- injected item",
+				Author: "alice\nbob",
+				Labels: []string{"feature"},
+				Merged: true,
+			},
+		},
+	})
+
+	if strings.Contains(draft.Body, "\n- injected item") {
+		t.Fatalf("release body contains injected list item:\n%s", draft.Body)
+	}
+	want := "- feat: add export - injected item (#1) by @alice bob"
+	if !strings.Contains(draft.Body, want) {
+		t.Fatalf("missing sanitized list item %q:\n%s", want, draft.Body)
+	}
+}

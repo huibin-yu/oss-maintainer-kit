@@ -65,7 +65,7 @@ func body(input Input) string {
 
 	var b strings.Builder
 	if input.PreviousTag != "" {
-		fmt.Fprintf(&b, "比较范围：`%s...%s`\n\n", input.PreviousTag, input.Version)
+		fmt.Fprintf(&b, "比较范围：`%s...%s`\n\n", markdownInline(input.PreviousTag), markdownInline(input.Version))
 	}
 	wrote := false
 	for _, name := range []string{"功能", "修复", "文档", "维护"} {
@@ -76,7 +76,7 @@ func body(input Input) string {
 		wrote = true
 		fmt.Fprintf(&b, "## %s\n\n", name)
 		for _, pull := range items {
-			fmt.Fprintf(&b, "- %s (#%d) by @%s\n", pull.Title, pull.Number, pull.Author)
+			fmt.Fprintf(&b, "- %s (#%d) by @%s\n", markdownInline(pull.Title), pull.Number, markdownInline(pull.Author))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -98,4 +98,8 @@ func groupFor(pull model.PullRequest) string {
 	default:
 		return "维护"
 	}
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
