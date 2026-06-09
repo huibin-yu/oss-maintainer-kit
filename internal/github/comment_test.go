@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/checkrun"
@@ -164,5 +165,126 @@ func TestCreateReleasePostsDraftPayload(t *testing.T) {
 	}
 	if release.ID != 701 || release.HTMLURL == "" || release.TagName != "v1.0.0" {
 		t.Fatalf("release = %#v", release)
+	}
+}
+
+func TestWriteMethodsRejectInvalidRepoBeforeRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("invalid repo should fail before request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	client := Client{BaseURL: server.URL, Token: "gh_test"}
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "issue comments",
+			run: func() error {
+				_, err := client.IssueComments(context.Background(), "acme", 1)
+				return err
+			},
+		},
+		{
+			name: "create issue comment",
+			run: func() error {
+				_, err := client.CreateIssueComment(context.Background(), "acme", 1, "body")
+				return err
+			},
+		},
+		{
+			name: "upsert issue comment",
+			run: func() error {
+				_, err := client.UpsertIssueComment(context.Background(), "acme", 1, "<!-- marker -->", "body")
+				return err
+			},
+		},
+		{
+			name: "check run",
+			run: func() error {
+				_, err := client.CreateCheckRun(context.Background(), "acme", checkrun.Payload{HeadSHA: "abc123"})
+				return err
+			},
+		},
+		{
+			name: "release",
+			run: func() error {
+				_, err := client.CreateRelease(context.Background(), "acme", ReleasePayload{TagName: "v1.0.0"})
+				return err
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run()
+			if err == nil {
+				t.Fatal("expected invalid repo error")
+			}
+			if !strings.Contains(err.Error(), "expected owner/name") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRequestJSONReturnsActionableGitHubErrors(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int
+		body       string
+		wantParts  []string
+		callClient func(Client) error
+	}{
+		{
+			name:      "unauthorized",
+			status:    http.StatusUnauthorized,
+			body:      `{"message":"Bad credentials"}`,
+			wantParts: []string{"github authentication failed", "Bad credentials"},
+			callClient: func(client Client) error {
+				_, err := client.IssueComments(context.Background(), "acme/demo", 1)
+				return err
+			},
+		},
+		{
+			name:      "not found",
+			status:    http.StatusNotFound,
+			body:      `{"message":"Not Found"}`,
+			wantParts: []string{"github resource not found or inaccessible", "Not Found"},
+			callClient: func(client Client) error {
+				_, err := client.IssueComments(context.Background(), "acme/demo", 1)
+				return err
+			},
+		},
+		{
+			name:      "validation failed",
+			status:    http.StatusUnprocessableEntity,
+			body:      `{"message":"Validation Failed","errors":[{"resource":"Release","field":"tag_name","code":"already_exists"}]}`,
+			wantParts: []string{"github request validation failed", "tag_name", "already_exists"},
+			callClient: func(client Client) error {
+				_, err := client.CreateRelease(context.Background(), "acme/demo", ReleasePayload{TagName: "v1.0.0"})
+				return err
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			err := tc.callClient(Client{BaseURL: server.URL, Token: "gh_test"})
+			if err == nil {
+				t.Fatal("expected github error")
+			}
+			for _, want := range tc.wantParts {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("missing %q in error: %v", want, err)
+				}
+			}
+		})
 	}
 }

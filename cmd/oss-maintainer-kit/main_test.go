@@ -31,6 +31,7 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	t.Setenv("GITHUB_TOKEN", "gh_test")
 
 	diffPath := filepath.Join(t.TempDir(), "pr.diff")
 	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
@@ -58,6 +59,39 @@ func TestRunGitHubCommentCreatesPRComment(t *testing.T) {
 	}
 }
 
+func TestRunGitHubCommentRequiresToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing token should fail before calling GitHub API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	diffPath := filepath.Join(t.TempDir(), "pr.diff")
+	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++const token = "sk_live_123456"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run([]string{
+		"github-comment",
+		"--repo", "acme/demo",
+		"--pr", "9",
+		"--diff", diffPath,
+		"--base-url", server.URL,
+		"--token-env", "MISSING_GITHUB_TOKEN_FOR_TEST",
+	})
+	if err == nil {
+		t.Fatal("expected missing token error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_FOR_TEST") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunGitHubCheckRunCreatesCheckRun(t *testing.T) {
 	var payload struct {
 		Name       string `json:"name"`
@@ -81,6 +115,7 @@ func TestRunGitHubCheckRunCreatesCheckRun(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":601,"html_url":"https://github.com/acme/demo/runs/601"}`))
 	}))
 	defer server.Close()
+	t.Setenv("GITHUB_TOKEN", "gh_test")
 
 	diffPath := filepath.Join(t.TempDir(), "pr.diff")
 	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
@@ -114,6 +149,39 @@ func TestRunGitHubCheckRunCreatesCheckRun(t *testing.T) {
 	}
 }
 
+func TestRunGitHubCheckRunRequiresToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing token should fail before calling GitHub API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	diffPath := filepath.Join(t.TempDir(), "pr.diff")
+	if err := os.WriteFile(diffPath, []byte(`diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++const token = "sk_live_123456"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run([]string{
+		"github-check-run",
+		"--repo", "acme/demo",
+		"--sha", "abc123",
+		"--diff", diffPath,
+		"--base-url", server.URL,
+		"--token-env", "MISSING_GITHUB_TOKEN_FOR_TEST",
+	})
+	if err == nil {
+		t.Fatal("expected missing token error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_FOR_TEST") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunGitHubReleaseCreatesDraftRelease(t *testing.T) {
 	var payload struct {
 		TagName    string `json:"tag_name"`
@@ -133,6 +201,7 @@ func TestRunGitHubReleaseCreatesDraftRelease(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":701,"html_url":"https://github.com/acme/demo/releases/tag/v1.0.0","tag_name":"v1.0.0"}`))
 	}))
 	defer server.Close()
+	t.Setenv("GITHUB_TOKEN", "gh_test")
 
 	root := t.TempDir()
 	writeTestFile(t, root, "pulls.json", `[
@@ -170,6 +239,78 @@ func TestRunGitHubReleaseCreatesDraftRelease(t *testing.T) {
 	}
 }
 
+func TestRunGitHubReleaseDryRunPrintsPayloadWithoutRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("dry run should not call GitHub API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-release",
+			"--repo", "acme/demo",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v1.0.0",
+			"--previous-tag", "v0.9.0",
+			"--base-url", server.URL,
+			"--dry-run",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	var payload struct {
+		TagName string `json:"tag_name"`
+		Name    string `json:"name"`
+		Body    string `json:"body"`
+		Draft   bool   `json:"draft"`
+	}
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.TagName != "v1.0.0" || payload.Name != "demo v1.0.0" || !payload.Draft {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !strings.Contains(payload.Body, "比较范围：`v0.9.0...v1.0.0`") || !strings.Contains(payload.Body, "feat: add export (#1)") {
+		t.Fatalf("unexpected release body: %s", payload.Body)
+	}
+}
+
+func TestRunGitHubReleaseRequiresTokenWhenCreating(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing token should fail before calling GitHub API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	err := run([]string{
+		"github-release",
+		"--repo", "acme/demo",
+		"--input", filepath.Join(root, "pulls.json"),
+		"--project", "demo",
+		"--version", "v1.0.0",
+		"--base-url", server.URL,
+		"--token-env", "MISSING_GITHUB_TOKEN_FOR_TEST",
+	})
+	if err == nil {
+		t.Fatal("expected missing token error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_FOR_TEST") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
 	var createdBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -190,6 +331,7 @@ func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	t.Setenv("GITHUB_TOKEN", "gh_test")
 
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
@@ -214,6 +356,33 @@ func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
 	}
 	if !strings.Contains(output, "https://github.com/acme/demo/issues/42#issuecomment-401") {
 		t.Fatalf("unexpected output: %s", output)
+	}
+}
+
+func TestRunGitHubTriageCommentRequiresToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("missing token should fail before calling GitHub API: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[
+		{"number":7,"title":"token leak in debug logs","body":"A secret is printed.","state":"open","author":"alice","labels":["bug"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	err := run([]string{
+		"github-triage-comment",
+		"--repo", "acme/demo",
+		"--issue", "42",
+		"--input", filepath.Join(root, "issues.json"),
+		"--base-url", server.URL,
+		"--token-env", "MISSING_GITHUB_TOKEN_FOR_TEST",
+	})
+	if err == nil {
+		t.Fatal("expected missing token error")
+	}
+	if !strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_FOR_TEST") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -419,6 +588,79 @@ func TestRunReleaseDraftOutputsGitHubReleaseJSON(t *testing.T) {
 	}
 	if strings.Contains(payload.Body, "draft change") {
 		t.Fatalf("unmerged PR leaked into release body: %s", payload.Body)
+	}
+}
+
+func TestRunReleaseDraftRejectsUnknownFormat(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	err := run([]string{
+		"release-draft",
+		"--input", filepath.Join(root, "pulls.json"),
+		"--project", "demo",
+		"--version", "v1.0.0",
+		"--format", "xml",
+	})
+	if err == nil {
+		t.Fatal("expected unknown format error")
+	}
+	if !strings.Contains(err.Error(), `unknown format "xml"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCommandsRejectUnknownFormat(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalHealthyRepo(t, root)
+	writeTestFile(t, root, "issues.json", `[
+		{"number":1,"title":"security token leak","body":"","state":"open","author":"alice","labels":["security"],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":2,"title":"feat: add export","body":"","state":"closed","author":"bob","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-02T00:00:00Z"}
+	]`)
+	writeTestFile(t, root, "pr.diff", `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++fmt.Println("hello")
+`)
+	historyPath := filepath.Join(root, "health-history.jsonl")
+	if err := run([]string{
+		"health-snapshot",
+		"--root", root,
+		"--project", "demo",
+		"--ref", "abc123",
+		"--history", historyPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "triage", args: []string{"triage", "--input", filepath.Join(root, "issues.json"), "--format", "xml"}},
+		{name: "review-diff", args: []string{"review-diff", "--diff", filepath.Join(root, "pr.diff"), "--format", "xml"}},
+		{name: "test-plan", args: []string{"test-plan", "--diff", filepath.Join(root, "pr.diff"), "--format", "xml"}},
+		{name: "release-check", args: []string{"release-check", "--issues", filepath.Join(root, "issues.json"), "--pulls", filepath.Join(root, "pulls.json"), "--root", root, "--format", "xml"}},
+		{name: "security-report", args: []string{"security-report", "--issues", filepath.Join(root, "issues.json"), "--root", root, "--format", "xml"}},
+		{name: "health", args: []string{"health", "--root", root, "--format", "xml"}},
+		{name: "health-trend", args: []string{"health-trend", "--history", historyPath, "--format", "xml"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(tc.args)
+			if err == nil {
+				t.Fatal("expected unknown format error")
+			}
+			if !strings.Contains(err.Error(), `unknown format "xml"`) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -130,6 +131,45 @@ func TestPullRequestsWithOptionsFiltersSinceClientSide(t *testing.T) {
 	}
 	if len(pulls) != 1 || pulls[0].Number != 1 {
 		t.Fatalf("unexpected pulls: %#v", pulls)
+	}
+}
+
+func TestRESTExportRejectsInvalidRepoBeforeRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("invalid repo should fail before request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	client := Client{BaseURL: server.URL}
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "issues",
+			run: func() error {
+				_, err := client.IssuesWithOptions(context.Background(), "acme", ExportOptions{Limit: 1})
+				return err
+			},
+		},
+		{
+			name: "pulls",
+			run: func() error {
+				_, err := client.PullRequestsWithOptions(context.Background(), "acme", ExportOptions{Limit: 1})
+				return err
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.run()
+			if err == nil {
+				t.Fatal("expected invalid repo error")
+			}
+			if !strings.Contains(err.Error(), "expected owner/name") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

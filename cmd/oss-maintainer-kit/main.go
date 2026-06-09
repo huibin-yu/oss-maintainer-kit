@@ -108,6 +108,9 @@ func runTriage(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateFormat(*format, "table", "json"); err != nil {
+		return err
+	}
 
 	issues, err := input.Issues(*inputPath)
 	if err != nil {
@@ -226,6 +229,9 @@ func runReleaseDraft(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
+		return err
+	}
 
 	pulls, err := input.PullRequests(*inputPath)
 	if err != nil {
@@ -267,6 +273,9 @@ func runReleaseCheck(args []string) error {
 	output := fs.String("output", "", "write release check report to file")
 	failOnBlocked := fs.Bool("fail-on-blocked", false, "exit with non-zero status when release readiness is blocked")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
 		return err
 	}
 
@@ -342,6 +351,9 @@ func runReviewDiff(args []string) error {
 	configPath := fs.String("config", "", "optional JSON review rules config")
 	format := fs.String("format", "markdown", "output format: markdown, json, sarif, comment, or check-run")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateFormat(*format, "markdown", "json", "sarif", "comment", "check-run"); err != nil {
 		return err
 	}
 
@@ -475,6 +487,9 @@ func runTestPlan(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
+		return err
+	}
 
 	diff, err := readAll(*diffPath)
 	if err != nil {
@@ -531,9 +546,13 @@ func runGitHubComment(args []string) error {
 		return err
 	}
 	body := prcomment.Markdown(findings)
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return err
+	}
 	comment, err := github.Client{
 		BaseURL: *baseURL,
-		Token:   os.Getenv(*tokenEnv),
+		Token:   token,
 	}.UpsertIssueComment(context.Background(), *repo, *number, "<!-- oss-maintainer-kit:review-diff -->", body)
 	if err != nil {
 		return err
@@ -572,9 +591,13 @@ func runGitHubCheckRun(args []string) error {
 	}
 	payload := checkrun.FromFindings(findings)
 	payload.HeadSHA = *sha
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return err
+	}
 	run, err := github.Client{
 		BaseURL: *baseURL,
-		Token:   os.Getenv(*tokenEnv),
+		Token:   token,
 	}.CreateCheckRun(context.Background(), *repo, payload)
 	if err != nil {
 		return err
@@ -595,6 +618,7 @@ func runGitHubRelease(args []string) error {
 	version := fs.String("version", "v0.1.0", "release version")
 	previousTag := fs.String("previous-tag", "", "previous release tag for compare range")
 	prerelease := fs.Bool("prerelease", false, "mark the GitHub release as prerelease")
+	dryRun := fs.Bool("dry-run", false, "print GitHub release payload without creating the release")
 	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
 	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
 	if err := fs.Parse(args); err != nil {
@@ -612,16 +636,26 @@ func runGitHubRelease(args []string) error {
 		Pulls:       pulls,
 		Prerelease:  *prerelease,
 	})
-	release, err := github.Client{
-		BaseURL: *baseURL,
-		Token:   os.Getenv(*tokenEnv),
-	}.CreateRelease(context.Background(), *repo, github.ReleasePayload{
+	payload := github.ReleasePayload{
 		TagName:    draft.TagName,
 		Name:       draft.Name,
 		Body:       draft.Body,
 		Draft:      true,
 		Prerelease: draft.Prerelease,
-	})
+	}
+	if *dryRun {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(payload)
+	}
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return fmt.Errorf("%w; use --dry-run to preview the payload without a token", err)
+	}
+	release, err := github.Client{
+		BaseURL: *baseURL,
+		Token:   token,
+	}.CreateRelease(context.Background(), *repo, payload)
 	if err != nil {
 		return err
 	}
@@ -649,9 +683,13 @@ func runGitHubTriageComment(args []string) error {
 		return err
 	}
 	body := triagecomment.Markdown(triage.RuleSet{}.Issues(issues))
+	token, err := githubTokenFromEnv(*tokenEnv)
+	if err != nil {
+		return err
+	}
 	comment, err := github.Client{
 		BaseURL: *baseURL,
-		Token:   os.Getenv(*tokenEnv),
+		Token:   token,
 	}.UpsertIssueComment(context.Background(), *repo, *number, triagecomment.Marker, body)
 	if err != nil {
 		return err
@@ -669,6 +707,23 @@ func loadReviewConfig(path string) (reviewconfig.Config, error) {
 		return reviewconfig.Config{}, nil
 	}
 	return reviewconfig.Load(path)
+}
+
+func githubTokenFromEnv(name string) (string, error) {
+	token := os.Getenv(name)
+	if strings.TrimSpace(token) == "" {
+		return "", fmt.Errorf("%s is required for GitHub write operations", name)
+	}
+	return token, nil
+}
+
+func validateFormat(format string, allowed ...string) error {
+	for _, value := range allowed {
+		if format == value {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown format %q, allowed: %s", format, strings.Join(allowed, ", "))
 }
 
 func readAll(path string) (string, error) {
@@ -690,6 +745,9 @@ func runHealth(args []string) error {
 	root := fs.String("root", ".", "repository root")
 	format := fs.String("format", "markdown", "output format: markdown or json")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
 		return err
 	}
 
@@ -736,6 +794,9 @@ func runHealthTrend(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
+		return err
+	}
 
 	snapshots, err := healthtrend.Load(*history)
 	if err != nil {
@@ -762,6 +823,9 @@ func runSecurityReport(args []string) error {
 	output := fs.String("output", "", "write security report to file")
 	failOnRisk := fs.Bool("fail-on-risk", false, "exit with non-zero status when security report has blockers")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := validateFormat(*format, "markdown", "json"); err != nil {
 		return err
 	}
 
@@ -1031,7 +1095,7 @@ Usage:
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
   oss-maintainer-kit github-check-run --repo owner/name --sha HEAD_SHA --diff examples/pr.diff [--config examples/review-rules.json]
-  oss-maintainer-kit github-release --repo owner/name --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9]
+  oss-maintainer-kit github-release --repo owner/name --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9] [--dry-run]
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
   oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json`)
 }

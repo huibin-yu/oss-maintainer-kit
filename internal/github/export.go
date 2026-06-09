@@ -126,16 +126,18 @@ func (c Client) PullRequestsGraphQL(ctx context.Context, repo string, options Ex
 }
 
 func (c Client) fetchAll(ctx context.Context, repo, resource string, options ExportOptions, dst any) error {
-	if repo == "" {
-		return fmt.Errorf("repo is required, expected owner/name")
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return err
 	}
 	options = options.withDefaults()
+	path := fmt.Sprintf("/repos/%s/%s/%s", owner, name, resource)
 	switch out := dst.(type) {
 	case *[]issueResponse:
 		var all []issueResponse
 		for page := 1; len(all) < options.Limit; page++ {
 			var batch []issueResponse
-			if err := c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), exportQuery(resource, options, page), nil, &batch); err != nil {
+			if err := c.requestJSON(ctx, "GET", path, exportQuery(resource, options, page), nil, &batch); err != nil {
 				return err
 			}
 			if len(batch) == 0 {
@@ -161,7 +163,7 @@ func (c Client) fetchAll(ctx context.Context, repo, resource string, options Exp
 		var all []pullResponse
 		for page := 1; len(all) < options.Limit; page++ {
 			var batch []pullResponse
-			if err := c.requestJSON(ctx, "GET", fmt.Sprintf("/repos/%s/%s", repo, resource), exportQuery(resource, options, page), nil, &batch); err != nil {
+			if err := c.requestJSON(ctx, "GET", path, exportQuery(resource, options, page), nil, &batch); err != nil {
 				return err
 			}
 			if len(batch) == 0 {

@@ -125,7 +125,19 @@ go run ./cmd/oss-maintainer-kit release-draft \
   --format json
 ```
 
-创建 GitHub Draft Release：
+预览 GitHub Draft Release payload：
+
+```bash
+go run ./cmd/oss-maintainer-kit github-release \
+  --repo owner/name \
+  --input examples/pulls.json \
+  --project oss-maintainer-kit \
+  --version v0.1.0 \
+  --previous-tag v0.0.9 \
+  --dry-run
+```
+
+确认 payload 后创建 GitHub Draft Release：
 
 ```bash
 GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-release \
@@ -135,6 +147,12 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-release \
   --version v0.1.0 \
   --previous-tag v0.0.9
 ```
+
+`--dry-run` 不访问 GitHub API，也不要求 `GITHUB_TOKEN`；实际创建 Draft Release 时必须提供 `GITHUB_TOKEN` 或通过 `--token-env` 指定其他环境变量。`github-release`、`github-comment`、`github-check-run` 和 `github-triage-comment` 都会在缺少 token 时直接失败，避免发起未认证写请求。
+
+所有 GitHub 相关命令的 `--repo` 参数都必须使用 `owner/name` 格式，格式错误会在本地直接失败。
+
+GitHub API 返回 401、403、404、422 等错误时，CLI 会输出认证失败、权限不足、资源不可访问或请求校验失败等分类说明，并保留 GitHub 返回的 message / validation details 便于排障。
 
 检查发布准备状态：
 

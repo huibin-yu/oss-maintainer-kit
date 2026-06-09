@@ -41,26 +41,28 @@ type Release struct {
 }
 
 func (c Client) CreateRelease(ctx context.Context, repo string, payload ReleasePayload) (Release, error) {
-	if strings.TrimSpace(repo) == "" {
-		return Release{}, fmt.Errorf("repo is required")
-	}
 	if strings.TrimSpace(payload.TagName) == "" {
 		return Release{}, fmt.Errorf("tag name is required")
 	}
+	path, err := repoPath(repo, "releases")
+	if err != nil {
+		return Release{}, err
+	}
 	var release Release
-	err := c.requestJSON(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/releases", repo), nil, payload, &release)
+	err = c.requestJSON(ctx, http.MethodPost, path, nil, payload, &release)
 	return release, err
 }
 
 func (c Client) CreateCheckRun(ctx context.Context, repo string, payload checkrun.Payload) (CheckRun, error) {
-	if strings.TrimSpace(repo) == "" {
-		return CheckRun{}, fmt.Errorf("repo is required")
-	}
 	if strings.TrimSpace(payload.HeadSHA) == "" {
 		return CheckRun{}, fmt.Errorf("head sha is required")
 	}
+	path, err := repoPath(repo, "check-runs")
+	if err != nil {
+		return CheckRun{}, err
+	}
 	var run CheckRun
-	err := c.requestJSON(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/check-runs", repo), nil, payload, &run)
+	err = c.requestJSON(ctx, http.MethodPost, path, nil, payload, &run)
 	return run, err
 }
 
@@ -84,8 +86,12 @@ func (c Client) IssueComments(ctx context.Context, repo string, number int) ([]C
 	if number <= 0 {
 		return nil, fmt.Errorf("issue or pull request number is required")
 	}
+	path, err := repoPath(repo, fmt.Sprintf("issues/%d/comments", number))
+	if err != nil {
+		return nil, err
+	}
 	var comments []Comment
-	err := c.requestJSON(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/issues/%d/comments", repo, number), map[string]string{"per_page": "100"}, nil, &comments)
+	err = c.requestJSON(ctx, http.MethodGet, path, map[string]string{"per_page": "100"}, nil, &comments)
 	return comments, err
 }
 
@@ -93,8 +99,12 @@ func (c Client) CreateIssueComment(ctx context.Context, repo string, number int,
 	if number <= 0 {
 		return Comment{}, fmt.Errorf("issue or pull request number is required")
 	}
+	path, err := repoPath(repo, fmt.Sprintf("issues/%d/comments", number))
+	if err != nil {
+		return Comment{}, err
+	}
 	var comment Comment
-	err := c.requestJSON(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/issues/%d/comments", repo, number), nil, commentRequest{Body: body}, &comment)
+	err = c.requestJSON(ctx, http.MethodPost, path, nil, commentRequest{Body: body}, &comment)
 	return comment, err
 }
 
@@ -158,7 +168,7 @@ func (c Client) requestJSON(ctx context.Context, method, path string, query map[
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("github %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return githubError(resp.StatusCode, resp.Status, body)
 	}
 	if dst == nil {
 		return nil
@@ -168,6 +178,72 @@ func (c Client) requestJSON(ctx context.Context, method, path string, query map[
 
 type commentRequest struct {
 	Body string `json:"body"`
+}
+
+type errorResponse struct {
+	Message string `json:"message"`
+	Errors  []struct {
+		Resource string `json:"resource"`
+		Field    string `json:"field"`
+		Code     string `json:"code"`
+		Message  string `json:"message"`
+	} `json:"errors"`
+}
+
+func githubError(statusCode int, status string, body []byte) error {
+	detail := strings.TrimSpace(string(body))
+	var parsed errorResponse
+	if len(body) > 0 && json.Unmarshal(body, &parsed) == nil {
+		parts := []string{}
+		if parsed.Message != "" {
+			parts = append(parts, parsed.Message)
+		}
+		for _, item := range parsed.Errors {
+			fields := []string{}
+			if item.Resource != "" {
+				fields = append(fields, item.Resource)
+			}
+			if item.Field != "" {
+				fields = append(fields, item.Field)
+			}
+			if item.Code != "" {
+				fields = append(fields, item.Code)
+			}
+			if item.Message != "" {
+				fields = append(fields, item.Message)
+			}
+			if len(fields) > 0 {
+				parts = append(parts, strings.Join(fields, " "))
+			}
+		}
+		if len(parts) > 0 {
+			detail = strings.Join(parts, "; ")
+		}
+	}
+	if detail == "" {
+		detail = status
+	}
+
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return fmt.Errorf("github authentication failed (%s): %s", status, detail)
+	case http.StatusForbidden:
+		return fmt.Errorf("github permission denied or rate limited (%s): %s", status, detail)
+	case http.StatusNotFound:
+		return fmt.Errorf("github resource not found or inaccessible (%s): %s", status, detail)
+	case http.StatusUnprocessableEntity:
+		return fmt.Errorf("github request validation failed (%s): %s", status, detail)
+	default:
+		return fmt.Errorf("github request failed (%s): %s", status, detail)
+	}
+}
+
+func repoPath(repo, suffix string) (string, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("/repos/%s/%s/%s", owner, name, strings.TrimLeft(suffix, "/")), nil
 }
 
 func perPage(limit int) string {
