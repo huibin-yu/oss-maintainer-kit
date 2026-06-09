@@ -237,6 +237,25 @@ func TestSplitRepoTrimsOwnerAndNameWhitespace(t *testing.T) {
 	}
 }
 
+func TestSplitRepoAcceptsGitHubRepositoryURLs(t *testing.T) {
+	cases := []string{
+		"https://github.com/acme/demo",
+		"https://github.com/acme/demo.git",
+		"git@github.com:acme/demo.git",
+	}
+	for _, repo := range cases {
+		t.Run(repo, func(t *testing.T) {
+			owner, name, err := splitRepo(repo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if owner != "acme" || name != "demo" {
+				t.Fatalf("owner=%q name=%q, want acme/demo", owner, name)
+			}
+		})
+	}
+}
+
 func TestIssuesGraphQLPaginatesAndMapsNodes(t *testing.T) {
 	var calls int
 	var states []string

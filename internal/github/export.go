@@ -296,6 +296,7 @@ func (c Client) fetchGraphQL(ctx context.Context, repo, resource string, options
 }
 
 func splitRepo(repo string) (string, string, error) {
+	repo = NormalizeRepo(repo)
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("repo is required, expected owner/name")
@@ -306,6 +307,15 @@ func splitRepo(repo string) (string, string, error) {
 		return "", "", fmt.Errorf("repo is required, expected owner/name")
 	}
 	return owner, name, nil
+}
+
+func NormalizeRepo(repo string) string {
+	repo = strings.TrimSpace(repo)
+	repo = strings.TrimPrefix(repo, "https://github.com/")
+	repo = strings.TrimPrefix(repo, "http://github.com/")
+	repo = strings.TrimPrefix(repo, "git@github.com:")
+	repo = strings.TrimSuffix(repo, ".git")
+	return strings.Trim(repo, "/")
 }
 
 func (o ExportOptions) withDefaults() ExportOptions {

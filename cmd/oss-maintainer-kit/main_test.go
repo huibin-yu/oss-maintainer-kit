@@ -283,6 +283,30 @@ func TestRunGitHubReleaseDryRunPrintsPayloadWithoutRequest(t *testing.T) {
 	}
 }
 
+func TestRunGitHubReleaseAcceptsRepositoryURL(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-release",
+			"--repo", "https://github.com/acme/demo.git",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v2.0.0",
+			"--dry-run",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(output, `"tag_name": "v2.0.0"`) {
+		t.Fatalf("missing release payload: %s", output)
+	}
+}
+
 func TestRunGitHubReleaseRequiresTokenWhenCreating(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("missing token should fail before calling GitHub API: %s %s", r.Method, r.URL.Path)

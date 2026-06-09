@@ -772,6 +772,7 @@ func githubAPITokenFromEnv(name string) (string, error) {
 }
 
 func validateRepo(repo string) error {
+	repo = github.NormalizeRepo(repo)
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return fmt.Errorf("repo is required, expected owner/name")
@@ -1235,12 +1236,12 @@ Usage:
   oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json
   oss-maintainer-kit codex-plan --issues examples/issues.json --pulls examples/pulls.json --output codex-plan.md
   oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . [--version v0.1.0] [--policy examples/release-policy.json] --output codex-oss-application.md
-  oss-maintainer-kit github-export --repo owner/name --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
+  oss-maintainer-kit github-export --repo owner/name|URL --kind issues [--api rest|graphql] [--state open|closed|all] [--since RFC3339] [--limit 200] --output examples/issues.json
   oss-maintainer-kit review-diff --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json|sarif|comment|check-run]
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
-  oss-maintainer-kit github-check-run --repo owner/name --sha HEAD_SHA --diff examples/pr.diff [--config examples/review-rules.json]
-  oss-maintainer-kit github-release --repo owner/name --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9] [--dry-run]
-  oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
-  oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json`)
+  oss-maintainer-kit github-check-run --repo owner/name|URL --sha HEAD_SHA --diff examples/pr.diff [--config examples/review-rules.json]
+  oss-maintainer-kit github-release --repo owner/name|URL --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9] [--dry-run]
+  oss-maintainer-kit github-comment --repo owner/name|URL --pr 123 --diff examples/pr.diff --config examples/review-rules.json
+  oss-maintainer-kit github-triage-comment --repo owner/name|URL --issue 123 --input examples/issues.json`)
 }
