@@ -48,6 +48,9 @@ func (c Config) Validate() error {
 		if rule.Severity == "" {
 			return fmt.Errorf("rule %q severity is required", rule.ID)
 		}
+		if !validSeverity(rule.Severity) {
+			return fmt.Errorf("rule %q severity must be one of: critical, high, medium, low", rule.ID)
+		}
 		if rule.Message == "" {
 			return fmt.Errorf("rule %q message is required", rule.ID)
 		}
@@ -56,6 +59,15 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validSeverity(value string) bool {
+	switch value {
+	case "critical", "high", "medium", "low":
+		return true
+	default:
+		return false
+	}
 }
 
 func (r Rule) IsEnabled() bool {

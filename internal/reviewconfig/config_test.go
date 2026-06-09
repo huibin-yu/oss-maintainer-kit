@@ -34,3 +34,12 @@ func TestValidateRejectsDuplicateRule(t *testing.T) {
 		t.Fatal("expected duplicate rule error")
 	}
 }
+
+func TestValidateRejectsUnknownSeverity(t *testing.T) {
+	err := Config{Rules: []Rule{
+		{ID: "x", Severity: "urgent", Contains: []string{"danger"}, Message: "custom risk"},
+	}}.Validate()
+	if err == nil {
+		t.Fatal("expected unknown severity error")
+	}
+}
