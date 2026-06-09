@@ -241,7 +241,9 @@ func TestSplitRepoAcceptsGitHubRepositoryURLs(t *testing.T) {
 	cases := []string{
 		"https://github.com/acme/demo",
 		"https://github.com/acme/demo.git",
+		"https://github.com/acme/demo.git/",
 		"git@github.com:acme/demo.git",
+		"git@github.com:acme/demo.git/",
 		"https://github.example.com/acme/demo.git",
 		"git@github.example.com:acme/demo.git",
 		"ssh://git@github.example.com/acme/demo.git",

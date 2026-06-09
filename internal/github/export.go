@@ -326,8 +326,8 @@ func NormalizeRepo(repo string) string {
 	if colon := strings.Index(repo, ":"); colon >= 0 {
 		repo = repo[colon+1:]
 	}
-	repo = strings.TrimSuffix(repo, ".git")
-	return strings.Trim(repo, "/")
+	repo = strings.Trim(repo, "/")
+	return strings.TrimSuffix(repo, ".git")
 }
 
 func (o ExportOptions) withDefaults() ExportOptions {
