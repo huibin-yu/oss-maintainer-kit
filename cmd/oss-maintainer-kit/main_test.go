@@ -686,7 +686,7 @@ func TestRunGitHubExportUsesGraphQL(t *testing.T) {
 			"--repo", "acme/demo",
 			"--kind", "issues",
 			"--api", "graphql",
-			"--graphql-url", server.URL + "/graphql",
+			"--graphql-url", server.URL + "/graphql/",
 			"--limit", "1",
 		})
 		if err != nil {

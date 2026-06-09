@@ -1130,7 +1130,7 @@ func runGitHubExport(args []string) error {
 		}
 		client.Token = token
 		if *graphqlURL != "" {
-			client.BaseURL = strings.TrimSuffix(*graphqlURL, "/graphql")
+			client.BaseURL = githubGraphQLBaseURL(*graphqlURL)
 		}
 		switch *kind {
 		case "issues":
@@ -1157,6 +1157,10 @@ func runGitHubExport(args []string) error {
 		return nil
 	}
 	return writeFile(*output, encoded, 0644)
+}
+
+func githubGraphQLBaseURL(raw string) string {
+	return strings.TrimSuffix(strings.TrimSuffix(strings.TrimRight(raw, "/"), "/graphql"), "/")
 }
 
 func validateGitHubExportOptions(kind, api, state string, limit, perPage int) error {
