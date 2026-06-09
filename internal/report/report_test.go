@@ -57,6 +57,39 @@ func TestMarkdownIncludesPriorityExplanation(t *testing.T) {
 	}
 }
 
+func TestMarkdownSanitizesInlineText(t *testing.T) {
+	doc := Markdown("demo\n## injected", model.MaintainerReport{
+		TopSuggestedWork: []model.TriageResult{{
+			Number:    1,
+			Priority:  "p0",
+			Title:     "security token leak\n- injected item",
+			Suggested: []string{"security\nneeds-review"},
+			Reasons:   []string{"包含安全风险\n- injected reason"},
+			Evidence:  []string{"命中关键词：token\n- injected evidence"},
+			Action:    "优先处理\n- injected action",
+		}},
+	})
+
+	if strings.Contains(doc, "\n## injected") ||
+		strings.Contains(doc, "\n- injected item") ||
+		strings.Contains(doc, "\n- injected reason") ||
+		strings.Contains(doc, "\n- injected evidence") ||
+		strings.Contains(doc, "\n- injected action") {
+		t.Fatalf("maintainer report contains unsanitized inline text:\n%s", doc)
+	}
+	for _, want := range []string{
+		"# demo ## injected 维护报告",
+		"#1 `p0` security token leak - injected item：security needs-review",
+		"原因：包含安全风险 - injected reason",
+		"证据：命中关键词：token - injected evidence",
+		"建议动作：优先处理 - injected action",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}
+
 func TestReleaseNotesGroupsMergedPullRequests(t *testing.T) {
 	doc := ReleaseNotes("v0.2.0", []model.PullRequest{
 		{Number: 3, Title: "fix parser panic", Author: "alice", Merged: true},

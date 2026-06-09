@@ -39,7 +39,7 @@ func Maintainer(issues []model.Issue, pulls []model.PullRequest, rules triage.Ru
 
 func Markdown(project string, summary model.MaintainerReport) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s 维护报告\n\n", project)
+	fmt.Fprintf(&b, "# %s 维护报告\n\n", markdownInline(project))
 	fmt.Fprintf(&b, "## 指标\n\n")
 	fmt.Fprintf(&b, "| 指标 | 数量 |\n| --- | ---: |\n")
 	fmt.Fprintf(&b, "| Open Issues | %d |\n", summary.OpenIssues)
@@ -54,15 +54,15 @@ func Markdown(project string, summary model.MaintainerReport) string {
 		return b.String()
 	}
 	for _, item := range summary.TopSuggestedWork {
-		fmt.Fprintf(&b, "- #%d `%s` %s：%s\n", item.Number, item.Priority, item.Title, strings.Join(item.Suggested, ", "))
+		fmt.Fprintf(&b, "- #%d `%s` %s：%s\n", item.Number, markdownInline(item.Priority), markdownInline(item.Title), inlineList(item.Suggested, ", "))
 		if len(item.Reasons) > 0 {
-			fmt.Fprintf(&b, "  - 原因：%s\n", strings.Join(item.Reasons, "；"))
+			fmt.Fprintf(&b, "  - 原因：%s\n", inlineList(item.Reasons, "；"))
 		}
 		if len(item.Evidence) > 0 {
-			fmt.Fprintf(&b, "  - 证据：%s\n", strings.Join(item.Evidence, "；"))
+			fmt.Fprintf(&b, "  - 证据：%s\n", inlineList(item.Evidence, "；"))
 		}
 		if item.Action != "" {
-			fmt.Fprintf(&b, "  - 建议动作：%s\n", item.Action)
+			fmt.Fprintf(&b, "  - 建议动作：%s\n", markdownInline(item.Action))
 		}
 	}
 	return b.String()
@@ -127,4 +127,14 @@ func groupFor(pull model.PullRequest) string {
 
 func markdownInline(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+func inlineList(values []string, sep string) string {
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		if item := markdownInline(value); item != "" {
+			items = append(items, item)
+		}
+	}
+	return strings.Join(items, sep)
 }
