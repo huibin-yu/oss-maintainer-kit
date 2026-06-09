@@ -50,21 +50,25 @@ func Build(project, repository string, summary model.MaintainerReport) Plan {
 func Markdown(plan Plan) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Codex for OSS 使用计划\n\n")
-	fmt.Fprintf(&b, "项目：%s\n\n", plan.Project)
+	fmt.Fprintf(&b, "项目：%s\n\n", markdownInline(plan.Project))
 	if plan.Repository != "" {
-		fmt.Fprintf(&b, "仓库：%s\n\n", plan.Repository)
+		fmt.Fprintf(&b, "仓库：%s\n\n", markdownInline(plan.Repository))
 	}
 	fmt.Fprintf(&b, "## 计划使用场景\n\n")
 	for _, item := range plan.Workflows {
-		fmt.Fprintf(&b, "- %s\n", item)
+		fmt.Fprintf(&b, "- %s\n", markdownInline(item))
 	}
 	fmt.Fprintf(&b, "\n## API Credits 用途\n\n")
 	for _, item := range plan.APIUseCases {
-		fmt.Fprintf(&b, "- %s\n", item)
+		fmt.Fprintf(&b, "- %s\n", markdownInline(item))
 	}
 	fmt.Fprintf(&b, "\n## 维护者约束\n\n")
 	for _, item := range plan.Guardrails {
-		fmt.Fprintf(&b, "- %s\n", item)
+		fmt.Fprintf(&b, "- %s\n", markdownInline(item))
 	}
 	return b.String()
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
