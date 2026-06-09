@@ -43,7 +43,7 @@ func (c Client) IssuesWithOptions(ctx context.Context, repo string, options Expo
 			Title:     item.Title,
 			Body:      item.Body,
 			State:     item.State,
-			Author:    item.User.Login,
+			Author:    authorLogin(item.User.Login),
 			Labels:    labels(item.Labels),
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
@@ -65,7 +65,7 @@ func (c Client) IssuesGraphQL(ctx context.Context, repo string, options ExportOp
 			Title:     item.Title,
 			Body:      item.Body,
 			State:     strings.ToLower(item.State),
-			Author:    item.Author.Login,
+			Author:    authorLogin(item.Author.Login),
 			Labels:    graphqlLabels(item.Labels.Nodes),
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
@@ -91,7 +91,7 @@ func (c Client) PullRequestsWithOptions(ctx context.Context, repo string, option
 			Title:     item.Title,
 			Body:      item.Body,
 			State:     item.State,
-			Author:    item.User.Login,
+			Author:    authorLogin(item.User.Login),
 			Labels:    labels(item.Labels),
 			Merged:    item.MergedAt != nil,
 			MergedAt:  item.MergedAt,
@@ -114,7 +114,7 @@ func (c Client) PullRequestsGraphQL(ctx context.Context, repo string, options Ex
 			Title:     item.Title,
 			Body:      item.Body,
 			State:     strings.ToLower(item.State),
-			Author:    item.Author.Login,
+			Author:    authorLogin(item.Author.Login),
 			Labels:    graphqlLabels(item.Labels.Nodes),
 			Merged:    item.MergedAt != nil,
 			MergedAt:  item.MergedAt,
@@ -337,6 +337,13 @@ func matchesSince(value time.Time, since *time.Time) bool {
 		return true
 	}
 	return !value.Before(*since)
+}
+
+func authorLogin(login string) string {
+	if strings.TrimSpace(login) == "" {
+		return "unknown"
+	}
+	return login
 }
 
 func labels(values []labelResponse) []string {

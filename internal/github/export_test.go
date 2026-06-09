@@ -36,6 +36,24 @@ func TestIssuesSkipsPullRequests(t *testing.T) {
 	}
 }
 
+func TestIssuesMapsMissingAuthorToUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"number":1,"title":"orphan issue","body":"","state":"open","user":null,"labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z"}
+		]`))
+	}))
+	defer server.Close()
+
+	issues, err := Client{BaseURL: server.URL}.Issues(context.Background(), "acme/demo", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 || issues[0].Author != "unknown" {
+		t.Fatalf("unexpected issues: %#v", issues)
+	}
+}
+
 func TestPullRequestsMapsMergedState(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -308,6 +326,27 @@ func TestPullRequestsGraphQLMapsMergedState(t *testing.T) {
 	}
 	if len(states) != 2 || states[0] != "CLOSED" || states[1] != "MERGED" {
 		t.Fatalf("states = %#v", states)
+	}
+}
+
+func TestPullRequestsGraphQLMapsMissingAuthorToUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data":{"repository":{"pullRequests":{
+				"nodes":[{"number":3,"title":"fix","body":"","state":"MERGED","author":null,"labels":{"nodes":[]},"createdAt":"2026-06-01T00:00:00Z","updatedAt":"2026-06-02T00:00:00Z","mergedAt":"2026-06-02T00:00:00Z"}],
+				"pageInfo":{"hasNextPage":false,"endCursor":""}
+			}}}
+		}`))
+	}))
+	defer server.Close()
+
+	pulls, err := Client{BaseURL: server.URL}.PullRequestsGraphQL(context.Background(), "acme/demo", ExportOptions{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pulls) != 1 || pulls[0].Author != "unknown" {
+		t.Fatalf("unexpected pulls: %#v", pulls)
 	}
 }
 
