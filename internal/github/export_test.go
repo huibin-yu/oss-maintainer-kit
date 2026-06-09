@@ -227,6 +227,16 @@ func TestRESTExportRejectsInvalidRepoBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestSplitRepoTrimsOwnerAndNameWhitespace(t *testing.T) {
+	owner, name, err := splitRepo(" acme / demo ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if owner != "acme" || name != "demo" {
+		t.Fatalf("owner=%q name=%q, want acme/demo", owner, name)
+	}
+}
+
 func TestIssuesGraphQLPaginatesAndMapsNodes(t *testing.T) {
 	var calls int
 	var states []string

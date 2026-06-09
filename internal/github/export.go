@@ -297,10 +297,15 @@ func (c Client) fetchGraphQL(ctx context.Context, repo, resource string, options
 
 func splitRepo(repo string) (string, string, error) {
 	parts := strings.Split(repo, "/")
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+	if len(parts) != 2 {
 		return "", "", fmt.Errorf("repo is required, expected owner/name")
 	}
-	return parts[0], parts[1], nil
+	owner := strings.TrimSpace(parts[0])
+	name := strings.TrimSpace(parts[1])
+	if owner == "" || name == "" {
+		return "", "", fmt.Errorf("repo is required, expected owner/name")
+	}
+	return owner, name, nil
 }
 
 func (o ExportOptions) withDefaults() ExportOptions {
