@@ -47,3 +47,34 @@ func TestMarkdownIncludesPrompt(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildSanitizesReleaseSummaryInlineText(t *testing.T) {
+	summary := Build(Input{
+		Project: "demo",
+		Version: "v1.0.0",
+		Pulls: []model.PullRequest{
+			{
+				Number: 1,
+				Title:  "feat: add export\n- injected item",
+				Body:   "security fix",
+				Author: "alice\nbob",
+				Merged: true,
+				Labels: []string{"feature\nsecurity"},
+			},
+		},
+	})
+
+	doc := Markdown(summary)
+	if strings.Contains(doc, "\n- injected item") || strings.Contains(doc, "alice\nbob") {
+		t.Fatalf("summary contains unsanitized inline text:\n%s", doc)
+	}
+	for _, want := range []string{
+		"feat: add export - injected item (#1)",
+		"安全相关变更需要复核影响范围：#1 feat: add export - injected item",
+		"#1 feat: add export - injected item by @alice bob labels=feature security",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}

@@ -36,7 +36,7 @@ func Build(input Input) Summary {
 
 func Markdown(summary Summary) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s %s 发布摘要\n\n", summary.Project, summary.Version)
+	fmt.Fprintf(&b, "# %s %s 发布摘要\n\n", markdownInline(summary.Project), markdownInline(summary.Version))
 	fmt.Fprintf(&b, "## 重点变化\n\n")
 	if len(summary.Highlights) == 0 {
 		fmt.Fprintf(&b, "暂无已合并 PR 可用于生成摘要。\n\n")
@@ -89,7 +89,7 @@ func highlights(pulls []model.PullRequest) []string {
 		}
 		titles := make([]string, 0, len(items))
 		for _, item := range items {
-			titles = append(titles, fmt.Sprintf("%s (#%d)", item.Title, item.Number))
+			titles = append(titles, fmt.Sprintf("%s (#%d)", markdownInline(item.Title), item.Number))
 		}
 		values = append(values, fmt.Sprintf("%s：%s", name, strings.Join(titles, "；")))
 	}
@@ -102,13 +102,14 @@ func risks(pulls []model.PullRequest) []string {
 	var stability []string
 	for _, pull := range pulls {
 		text := strings.ToLower(pull.Title + " " + pull.Body + " " + strings.Join(pull.Labels, " "))
+		title := markdownInline(pull.Title)
 		switch {
 		case hasAny(text, "security", "token", "secret", "cve"):
-			security = append(security, fmt.Sprintf("安全相关变更需要复核影响范围：#%d %s", pull.Number, pull.Title))
+			security = append(security, fmt.Sprintf("安全相关变更需要复核影响范围：#%d %s", pull.Number, title))
 		case hasAny(text, "breaking", "migration", "config", "api"):
-			compatibility = append(compatibility, fmt.Sprintf("兼容性或配置变更需要发布说明中特别标注：#%d %s", pull.Number, pull.Title))
+			compatibility = append(compatibility, fmt.Sprintf("兼容性或配置变更需要发布说明中特别标注：#%d %s", pull.Number, title))
 		case hasAny(text, "panic", "crash", "regression"):
-			stability = append(stability, fmt.Sprintf("稳定性修复需要补充回归验证：#%d %s", pull.Number, pull.Title))
+			stability = append(stability, fmt.Sprintf("稳定性修复需要补充回归验证：#%d %s", pull.Number, title))
 		}
 	}
 	values := append([]string{}, security...)
@@ -119,7 +120,7 @@ func risks(pulls []model.PullRequest) []string {
 
 func prompt(summary Summary, pulls []model.PullRequest) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "请为开源项目 %s 的 %s 版本生成中文发布摘要。\n\n", summary.Project, summary.Version)
+	fmt.Fprintf(&b, "请为开源项目 %s 的 %s 版本生成中文发布摘要。\n\n", markdownInline(summary.Project), markdownInline(summary.Version))
 	fmt.Fprintf(&b, "要求：\n")
 	fmt.Fprintf(&b, "- 面向用户和维护者，语言简洁。\n")
 	fmt.Fprintf(&b, "- 按功能、修复、文档、维护分组。\n")
@@ -130,7 +131,7 @@ func prompt(summary Summary, pulls []model.PullRequest) string {
 		fmt.Fprintf(&b, "- 暂无\n")
 	} else {
 		for _, pull := range pulls {
-			fmt.Fprintf(&b, "- #%d %s by @%s labels=%s", pull.Number, pull.Title, pull.Author, strings.Join(pull.Labels, ","))
+			fmt.Fprintf(&b, "- #%d %s by @%s labels=%s", pull.Number, markdownInline(pull.Title), markdownInline(pull.Author), inlineList(pull.Labels))
 			if pull.MergedAt != nil {
 				fmt.Fprintf(&b, " merged_at=%s", pull.MergedAt.Format("2006-01-02"))
 			}
@@ -141,6 +142,20 @@ func prompt(summary Summary, pulls []model.PullRequest) string {
 		}
 	}
 	return b.String()
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func inlineList(values []string) string {
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		if item := markdownInline(value); item != "" {
+			items = append(items, item)
+		}
+	}
+	return strings.Join(items, ",")
 }
 
 func groupFor(pull model.PullRequest) string {
