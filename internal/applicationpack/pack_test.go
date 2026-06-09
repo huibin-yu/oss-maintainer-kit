@@ -78,3 +78,55 @@ func TestMarkdownUsesFallbackRepositoryText(t *testing.T) {
 		t.Fatalf("missing repository fallback:\n%s", doc)
 	}
 }
+
+func TestMarkdownSanitizesInlineText(t *testing.T) {
+	doc := Markdown(Pack{
+		Project:    "oss-maintainer-kit\nrm -rf /tmp/example",
+		Repository: "https://github.com/acme/demo\n## injected",
+		Health: health.Summary{
+			Checks: []health.Check{{
+				Passed:         false,
+				Path:           ".github/workflows/ci.yml\n- injected path",
+				Message:        "缺失 CI\n- injected message",
+				Recommendation: "添加 CI\n- injected recommendation",
+			}},
+		},
+		Release: releasecheck.Result{
+			Project:  "oss-maintainer-kit",
+			Ready:    false,
+			Blockers: []string{"发布阻塞\n- injected release blocker"},
+		},
+		Security: securityreport.Report{
+			Project:  "oss-maintainer-kit",
+			Blocked:  true,
+			Blockers: []string{"安全阻塞\n- injected security blocker"},
+		},
+	})
+
+	for _, unwanted := range []string{
+		"\nrm -rf /tmp/example",
+		"\n## injected",
+		"\n- injected path",
+		"\n- injected message",
+		"\n- injected recommendation",
+		"\n- injected release blocker",
+		"\n- injected security blocker",
+	} {
+		if strings.Contains(doc, unwanted) {
+			t.Fatalf("application pack contains unsanitized text %q:\n%s", unwanted, doc)
+		}
+	}
+	for _, want := range []string{
+		"项目：oss-maintainer-kit rm -rf /tmp/example",
+		"仓库：https://github.com/acme/demo ## injected",
+		"- `.github/workflows/ci.yml - injected path`：缺失 CI - injected message",
+		"建议：添加 CI - injected recommendation",
+		"- 发布阻塞 - injected release blocker",
+		"- 安全阻塞 - injected security blocker",
+		"--project oss-maintainer-kit rm -rf /tmp/example",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}

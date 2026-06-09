@@ -52,9 +52,11 @@ func Markdown(pack Pack) string {
 	if repository == "" {
 		repository = "发布后填写公开 GitHub 仓库地址"
 	}
+	project := markdownInline(pack.Project)
+	repository = markdownInline(repository)
 
 	fmt.Fprintf(&b, "# Codex for OSS 申请证据包\n\n")
-	fmt.Fprintf(&b, "项目：%s\n\n", pack.Project)
+	fmt.Fprintf(&b, "项目：%s\n\n", project)
 	fmt.Fprintf(&b, "仓库：%s\n\n", repository)
 
 	fmt.Fprintf(&b, "## 申请表可填内容\n\n")
@@ -94,9 +96,9 @@ func Markdown(pack Pack) string {
 	} else {
 		fmt.Fprintf(&b, "### 需要补齐的申请前事项\n\n")
 		for _, check := range missing {
-			fmt.Fprintf(&b, "- `%s`：%s\n", check.Path, check.Message)
+			fmt.Fprintf(&b, "- `%s`：%s\n", markdownInline(check.Path), markdownInline(check.Message))
 			if check.Recommendation != "" {
-				fmt.Fprintf(&b, "  建议：%s\n", check.Recommendation)
+				fmt.Fprintf(&b, "  建议：%s\n", markdownInline(check.Recommendation))
 			}
 		}
 	}
@@ -123,14 +125,14 @@ func Markdown(pack Pack) string {
 	if len(pack.Release.Blockers) > 0 {
 		fmt.Fprintf(&b, "### 发布阻塞项\n\n")
 		for _, blocker := range pack.Release.Blockers {
-			fmt.Fprintf(&b, "- %s\n", blocker)
+			fmt.Fprintf(&b, "- %s\n", markdownInline(blocker))
 		}
 		fmt.Fprintln(&b)
 	}
 	if len(pack.Security.Blockers) > 0 {
 		fmt.Fprintf(&b, "### 安全阻塞项\n\n")
 		for _, blocker := range pack.Security.Blockers {
-			fmt.Fprintf(&b, "- %s\n", blocker)
+			fmt.Fprintf(&b, "- %s\n", markdownInline(blocker))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -144,10 +146,14 @@ func Markdown(pack Pack) string {
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit health-trend --history health-history.jsonl\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit sbom --root . --project oss-maintainer-kit --output sbom.spdx.json\n")
 	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit review-diff --diff examples/pr.diff --config examples/review-rules.json --format sarif\n")
-	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit security-report --issues examples/issues.json --diff examples/pr.diff --root . --project %s\n", pack.Project)
-	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --project %s --version v0.1.0 --policy examples/release-policy.json\n", pack.Project)
+	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit security-report --issues examples/issues.json --diff examples/pr.diff --root . --project %s\n", project)
+	fmt.Fprintf(&b, "rtk go run ./cmd/oss-maintainer-kit release-check --issues examples/issues.json --pulls examples/pulls.json --root . --project %s --version v0.1.0 --policy examples/release-policy.json\n", project)
 	fmt.Fprintf(&b, "```\n")
 	return b.String()
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func missingChecks(summary health.Summary) []health.Check {
