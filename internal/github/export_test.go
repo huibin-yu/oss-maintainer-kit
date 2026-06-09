@@ -220,7 +220,7 @@ func TestRESTExportRejectsInvalidRepoBeforeRequest(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected invalid repo error")
 			}
-			if !strings.Contains(err.Error(), "expected owner/name") {
+			if !strings.Contains(err.Error(), "expected owner/name or repository URL") {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})

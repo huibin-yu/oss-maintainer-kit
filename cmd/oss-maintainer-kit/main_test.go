@@ -435,7 +435,7 @@ func TestRunGitHubWriteCommandsValidateArgumentsBeforeReadingInput(t *testing.T)
 		{
 			name: "github-release-repo",
 			args: []string{"github-release", "--repo", "invalid", "--input", missingPath},
-			want: "expected owner/name",
+			want: "expected owner/name or repository URL",
 		},
 	}
 	for _, tc := range cases {

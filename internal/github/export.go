@@ -299,12 +299,12 @@ func splitRepo(repo string) (string, string, error) {
 	repo = NormalizeRepo(repo)
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("repo is required, expected owner/name")
+		return "", "", fmt.Errorf("repo is required, expected owner/name or repository URL")
 	}
 	owner := strings.TrimSpace(parts[0])
 	name := strings.TrimSpace(parts[1])
 	if owner == "" || name == "" {
-		return "", "", fmt.Errorf("repo is required, expected owner/name")
+		return "", "", fmt.Errorf("repo is required, expected owner/name or repository URL")
 	}
 	return owner, name, nil
 }

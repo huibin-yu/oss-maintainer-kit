@@ -532,7 +532,7 @@ func runTestPlan(args []string) error {
 
 func runGitHubComment(args []string) error {
 	fs := flag.NewFlagSet("github-comment", flag.ContinueOnError)
-	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	repo := fs.String("repo", "", "GitHub repository as owner/name or URL")
 	number := fs.Int("pr", 0, "pull request number")
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
 	configPath := fs.String("config", "", "optional JSON review rules config")
@@ -585,7 +585,7 @@ func runGitHubComment(args []string) error {
 
 func runGitHubCheckRun(args []string) error {
 	fs := flag.NewFlagSet("github-check-run", flag.ContinueOnError)
-	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	repo := fs.String("repo", "", "GitHub repository as owner/name or URL")
 	sha := fs.String("sha", "", "GitHub commit SHA for the check run head")
 	diffPath := fs.String("diff", "", "unified diff file, reads stdin when empty")
 	configPath := fs.String("config", "", "optional JSON review rules config")
@@ -639,7 +639,7 @@ func runGitHubCheckRun(args []string) error {
 
 func runGitHubRelease(args []string) error {
 	fs := flag.NewFlagSet("github-release", flag.ContinueOnError)
-	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	repo := fs.String("repo", "", "GitHub repository as owner/name or URL")
 	inputPath := fs.String("input", "examples/pulls.json", "pull requests JSON file")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
 	version := fs.String("version", "v0.1.0", "release version")
@@ -706,7 +706,7 @@ func runGitHubRelease(args []string) error {
 
 func runGitHubTriageComment(args []string) error {
 	fs := flag.NewFlagSet("github-triage-comment", flag.ContinueOnError)
-	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	repo := fs.String("repo", "", "GitHub repository as owner/name or URL")
 	number := fs.Int("issue", 0, "issue or pull request number")
 	inputPath := fs.String("input", "examples/issues.json", "issues JSON file")
 	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
@@ -775,7 +775,7 @@ func validateRepo(repo string) error {
 	repo = github.NormalizeRepo(repo)
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return fmt.Errorf("repo is required, expected owner/name")
+		return fmt.Errorf("repo is required, expected owner/name or repository URL")
 	}
 	return nil
 }
@@ -1101,7 +1101,7 @@ func runApplicationPack(args []string) error {
 
 func runGitHubExport(args []string) error {
 	fs := flag.NewFlagSet("github-export", flag.ContinueOnError)
-	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	repo := fs.String("repo", "", "GitHub repository as owner/name or URL")
 	kind := fs.String("kind", "issues", "export kind: issues or pulls")
 	api := fs.String("api", "rest", "GitHub API type: rest or graphql")
 	limit := fs.Int("limit", 100, "max items to export")
