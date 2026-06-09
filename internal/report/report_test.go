@@ -81,3 +81,21 @@ func TestReleaseNotesExplainsWhenNoMergedPullRequests(t *testing.T) {
 		t.Fatalf("missing empty release note message:\n%s", doc)
 	}
 }
+
+func TestReleaseNotesSanitizesInlineText(t *testing.T) {
+	doc := ReleaseNotes("v0.2.0\n## injected", []model.PullRequest{
+		{Number: 3, Title: "fix parser panic\n- injected item", Author: "alice\nbob", Merged: true},
+	})
+
+	if strings.Contains(doc, "\n- injected item") || strings.Contains(doc, "alice\nbob") || strings.Contains(doc, "\n## injected") {
+		t.Fatalf("release notes contain unsanitized inline text:\n%s", doc)
+	}
+	for _, want := range []string{
+		"# v0.2.0 ## injected 发布说明",
+		"- fix parser panic - injected item (#3) by @alice bob",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}

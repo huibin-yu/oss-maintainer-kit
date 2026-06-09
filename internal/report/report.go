@@ -83,7 +83,7 @@ func ReleaseNotes(version string, pulls []model.PullRequest) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s 发布说明\n\n", version)
+	fmt.Fprintf(&b, "# %s 发布说明\n\n", markdownInline(version))
 	wrote := false
 	for _, name := range []string{"功能", "修复", "文档", "维护"} {
 		items := groups[name]
@@ -94,7 +94,7 @@ func ReleaseNotes(version string, pulls []model.PullRequest) string {
 		sort.SliceStable(items, func(i, j int) bool { return items[i].Number < items[j].Number })
 		fmt.Fprintf(&b, "## %s\n\n", name)
 		for _, pull := range items {
-			fmt.Fprintf(&b, "- %s (#%d) by @%s\n", pull.Title, pull.Number, pull.Author)
+			fmt.Fprintf(&b, "- %s (#%d) by @%s\n", markdownInline(pull.Title), pull.Number, markdownInline(pull.Author))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -123,4 +123,8 @@ func groupFor(pull model.PullRequest) string {
 	default:
 		return "维护"
 	}
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
