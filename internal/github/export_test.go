@@ -242,6 +242,9 @@ func TestSplitRepoAcceptsGitHubRepositoryURLs(t *testing.T) {
 		"https://github.com/acme/demo",
 		"https://github.com/acme/demo.git",
 		"git@github.com:acme/demo.git",
+		"https://github.example.com/acme/demo.git",
+		"git@github.example.com:acme/demo.git",
+		"ssh://git@github.example.com/acme/demo.git",
 	}
 	for _, repo := range cases {
 		t.Run(repo, func(t *testing.T) {

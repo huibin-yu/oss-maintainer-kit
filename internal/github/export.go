@@ -311,9 +311,21 @@ func splitRepo(repo string) (string, string, error) {
 
 func NormalizeRepo(repo string) string {
 	repo = strings.TrimSpace(repo)
-	repo = strings.TrimPrefix(repo, "https://github.com/")
-	repo = strings.TrimPrefix(repo, "http://github.com/")
-	repo = strings.TrimPrefix(repo, "git@github.com:")
+	if strings.Contains(repo, "://") {
+		repo = strings.TrimPrefix(repo, "https://")
+		repo = strings.TrimPrefix(repo, "http://")
+		repo = strings.TrimPrefix(repo, "ssh://")
+		repo = strings.TrimPrefix(repo, "git@")
+		if slash := strings.Index(repo, "/"); slash >= 0 {
+			repo = repo[slash+1:]
+		}
+	}
+	if at := strings.Index(repo, "@"); at >= 0 {
+		repo = repo[at+1:]
+	}
+	if colon := strings.Index(repo, ":"); colon >= 0 {
+		repo = repo[colon+1:]
+	}
 	repo = strings.TrimSuffix(repo, ".git")
 	return strings.Trim(repo, "/")
 }
