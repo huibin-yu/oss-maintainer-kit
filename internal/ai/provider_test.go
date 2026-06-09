@@ -3,6 +3,7 @@ package ai
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +54,35 @@ func TestLoadProviderConfigRejectsBlankBaseURL(t *testing.T) {
 	}
 	if _, err := LoadProviderConfig(path); err == nil {
 		t.Fatal("expected blank base_url error")
+	}
+}
+
+func TestLoadProviderConfigRejectsUnknownFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "provider.json")
+	if err := os.WriteFile(path, []byte(`{"base_url":"https://example.com/v1","model":"custom","api_key_env":"CUSTOM_KEY","timeout":30}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadProviderConfig(path)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+	if !strings.Contains(err.Error(), "unknown field") || !strings.Contains(err.Error(), "timeout") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadProviderConfigRejectsTrailingJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "provider.json")
+	if err := os.WriteFile(path, []byte(`{"model":"custom"} {"model":"other"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadProviderConfig(path)
+	if err == nil {
+		t.Fatal("expected trailing JSON error")
+	}
+	if !strings.Contains(err.Error(), "unexpected trailing JSON value") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

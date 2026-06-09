@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -32,8 +34,16 @@ func LoadProviderConfig(path string) (ProviderConfig, error) {
 	if err != nil {
 		return ProviderConfig{}, fmt.Errorf("read provider config %s: %w", path, err)
 	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cfg); err != nil {
 		return ProviderConfig{}, fmt.Errorf("parse provider config %s: %w", path, err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return ProviderConfig{}, fmt.Errorf("parse provider config %s: unexpected trailing JSON value", path)
+		}
+		return ProviderConfig{}, fmt.Errorf("parse provider config %s: unexpected trailing JSON value", path)
 	}
 	if err := cfg.Validate(); err != nil {
 		return ProviderConfig{}, fmt.Errorf("invalid provider config %s: %w", path, err)
