@@ -71,9 +71,23 @@ func Markdown(findings []Finding) string {
 	fmt.Fprintf(&b, "| 严重级别 | 文件 | 行号 | 规则 | 说明 |\n")
 	fmt.Fprintf(&b, "| --- | --- | ---: | --- | --- |\n")
 	for _, finding := range findings {
-		fmt.Fprintf(&b, "| %s | `%s` | %d | `%s` | %s |\n", finding.Severity, finding.File, finding.Line, finding.Rule, finding.Message)
+		fmt.Fprintf(&b, "| %s | `%s` | %d | `%s` | %s |\n",
+			markdownCell(finding.Severity),
+			markdownCell(finding.File),
+			finding.Line,
+			markdownCell(finding.Rule),
+			markdownCell(finding.Message),
+		)
 	}
 	return b.String()
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	return value
 }
 
 func inspect(file string, line int, code string) []Finding {

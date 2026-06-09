@@ -23,3 +23,22 @@ func TestMarkdownIncludesMarkerAndFindings(t *testing.T) {
 		t.Fatalf("missing location:\n%s", doc)
 	}
 }
+
+func TestMarkdownEscapesTableCells(t *testing.T) {
+	doc := Markdown([]diffreview.Finding{{
+		File:     "internal/a|b.go",
+		Line:     3,
+		Severity: "high",
+		Rule:     "custom|rule",
+		Message:  "first line\nsecond | line",
+	}})
+
+	if strings.Contains(doc, "internal/a|b.go") || strings.Contains(doc, "custom|rule") || strings.Contains(doc, "first line\nsecond") {
+		t.Fatalf("markdown did not escape table cells:\n%s", doc)
+	}
+	for _, want := range []string{"internal/a\\|b.go:3", "custom\\|rule", "first line<br>second \\| line"} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing escaped value %q:\n%s", want, doc)
+		}
+	}
+}

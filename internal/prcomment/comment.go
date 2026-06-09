@@ -22,10 +22,24 @@ func Markdown(findings []diffreview.Finding) string {
 	fmt.Fprintf(&b, "| 严重级别 | 位置 | 规则 | 说明 |\n")
 	fmt.Fprintf(&b, "| --- | --- | --- | --- |\n")
 	for _, finding := range findings {
-		fmt.Fprintf(&b, "| %s | `%s:%d` | `%s` | %s |\n", finding.Severity, finding.File, finding.Line, finding.Rule, finding.Message)
+		fmt.Fprintf(&b, "| %s | `%s:%d` | `%s` | %s |\n",
+			markdownCell(finding.Severity),
+			markdownCell(finding.File),
+			finding.Line,
+			markdownCell(finding.Rule),
+			markdownCell(finding.Message),
+		)
 	}
 	fmt.Fprintf(&b, "\n请维护者确认上述项是否需要修复、豁免或补充测试。\n")
 	return b.String()
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	return value
 }
 
 func count(findings []diffreview.Finding, severity string) int {

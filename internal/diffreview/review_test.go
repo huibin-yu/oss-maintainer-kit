@@ -36,6 +36,25 @@ func TestMarkdownHandlesNoFindings(t *testing.T) {
 	}
 }
 
+func TestMarkdownEscapesTableCells(t *testing.T) {
+	doc := Markdown([]Finding{{
+		File:     "internal/a|b.go",
+		Line:     7,
+		Severity: "medium",
+		Rule:     "custom|rule",
+		Message:  "first line\nsecond | line",
+	}})
+
+	if strings.Contains(doc, "internal/a|b.go") || strings.Contains(doc, "custom|rule") || strings.Contains(doc, "first line\nsecond") {
+		t.Fatalf("markdown did not escape table cells:\n%s", doc)
+	}
+	for _, want := range []string{"internal/a\\|b.go", "custom\\|rule", "first line<br>second \\| line"} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing escaped value %q:\n%s", want, doc)
+		}
+	}
+}
+
 func TestReviewWithConfigFindsCustomRule(t *testing.T) {
 	diff := `diff --git a/main.go b/main.go
 --- a/main.go
