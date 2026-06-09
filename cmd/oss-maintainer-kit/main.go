@@ -1016,7 +1016,9 @@ func runCodexPlan(args []string) error {
 	issuesPath := fs.String("issues", "examples/issues.json", "issues JSON file")
 	pullsPath := fs.String("pulls", "examples/pulls.json", "pull requests JSON file")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
-	repository := fs.String("repo-url", "", "public repository URL")
+	var repository string
+	fs.StringVar(&repository, "repo-url", "", "public repository URL")
+	fs.StringVar(&repository, "repository", "", "public repository URL (alias for --repo-url)")
 	output := fs.String("output", "", "write markdown plan to file")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1031,7 +1033,7 @@ func runCodexPlan(args []string) error {
 		return err
 	}
 	summary := report.Maintainer(issues, pulls, triage.RuleSet{})
-	doc := codexplan.Markdown(codexplan.Build(*project, *repository, summary))
+	doc := codexplan.Markdown(codexplan.Build(*project, repository, summary))
 	if *output == "" {
 		fmt.Print(doc)
 		return nil
@@ -1045,7 +1047,9 @@ func runApplicationPack(args []string) error {
 	pullsPath := fs.String("pulls", "examples/pulls.json", "pull requests JSON file")
 	root := fs.String("root", ".", "repository root for health checks")
 	project := fs.String("project", "oss-maintainer-kit", "project name")
-	repository := fs.String("repo-url", "", "public repository URL")
+	var repository string
+	fs.StringVar(&repository, "repo-url", "", "public repository URL")
+	fs.StringVar(&repository, "repository", "", "public repository URL (alias for --repo-url)")
 	version := fs.String("version", "v0.1.0", "release version for readiness evidence")
 	policyPath := fs.String("policy", "examples/release-policy.json", "release policy JSON file for readiness evidence")
 	output := fs.String("output", "", "write markdown application pack to file")
@@ -1080,7 +1084,7 @@ func runApplicationPack(args []string) error {
 	})
 	doc := applicationpack.Markdown(applicationpack.Build(applicationpack.Input{
 		Project:    *project,
-		Repository: *repository,
+		Repository: repository,
 		Issues:     issues,
 		Pulls:      pulls,
 		Health:     repositoryHealth,

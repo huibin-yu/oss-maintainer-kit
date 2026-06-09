@@ -1413,6 +1413,60 @@ func TestRunApplicationPackIncludesReadinessEvidence(t *testing.T) {
 	}
 }
 
+func TestRunCodexPlanAcceptsRepositoryAlias(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "issues.json", `[]`)
+	writeTestFile(t, root, "pulls.json", `[]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"codex-plan",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--pulls", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--repository", "https://github.com/acme/demo",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "仓库：https://github.com/acme/demo") {
+		t.Fatalf("repository alias not reflected in output:\n%s", output)
+	}
+}
+
+func TestRunApplicationPackAcceptsRepositoryAlias(t *testing.T) {
+	root := t.TempDir()
+	writeMinimalHealthyRepo(t, root)
+	writeTestFile(t, root, "issues.json", `[]`)
+	writeTestFile(t, root, "pulls.json", `[]`)
+	writeTestFile(t, root, "policy.json", `{
+		"min_health_score": 100,
+		"block_security_issues": true,
+		"block_stale_issues": false
+	}`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"application-pack",
+			"--issues", filepath.Join(root, "issues.json"),
+			"--pulls", filepath.Join(root, "pulls.json"),
+			"--root", root,
+			"--project", "demo",
+			"--repository", "https://github.com/acme/demo",
+			"--policy", filepath.Join(root, "policy.json"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if !strings.Contains(output, "仓库：https://github.com/acme/demo") {
+		t.Fatalf("repository alias not reflected in output:\n%s", output)
+	}
+}
+
 func TestRunSBOMWritesSPDXJSON(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "go.mod", `module github.com/acme/demo
