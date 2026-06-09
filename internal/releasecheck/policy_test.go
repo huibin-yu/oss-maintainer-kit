@@ -5,20 +5,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/health"
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
 )
 
 func TestBuildWithPolicyBlocksStaleIssues(t *testing.T) {
+	now := time.Now().AddDate(0, 0, -40)
 	result := BuildWithPolicy(Input{
 		Project: "demo",
 		Version: "v1.0.0",
 		Health:  health.Summary{Score: 100},
 		Issues: []model.Issue{{
-			Number: 7,
-			Title:  "needs follow up",
-			State:  "open",
+			Number:    7,
+			Title:     "needs follow up",
+			State:     "open",
+			UpdatedAt: now,
 		}},
 	}, Policy{
 		BlockStaleIssues: true,

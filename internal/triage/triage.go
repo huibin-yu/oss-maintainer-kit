@@ -39,7 +39,7 @@ func (r RuleSet) Issue(issue model.Issue) model.TriageResult {
 		Number:    issue.Number,
 		Title:     issue.Title,
 		Priority:  "p2",
-		StaleDays: int(now.Sub(issue.UpdatedAt).Hours() / 24),
+		StaleDays: staleDays(now, issue.UpdatedAt),
 	}
 
 	add := func(label, reason, evidence string) {
@@ -85,6 +85,13 @@ func (r RuleSet) Issue(issue model.Issue) model.TriageResult {
 	result.Action = actionFor(result)
 
 	return result
+}
+
+func staleDays(now, updatedAt time.Time) int {
+	if updatedAt.IsZero() || updatedAt.After(now) {
+		return 0
+	}
+	return int(now.Sub(updatedAt).Hours() / 24)
 }
 
 func firstMatch(text string, words ...string) string {

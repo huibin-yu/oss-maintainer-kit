@@ -70,6 +70,25 @@ func TestIssueExplainsStaleMaintenanceWork(t *testing.T) {
 	}
 }
 
+func TestIssueDoesNotTreatMissingUpdatedAtAsStale(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	result := RuleSet{Now: now}.Issue(model.Issue{
+		Number: 10,
+		Title:  "needs labels",
+		State:  "open",
+	})
+
+	if result.StaleDays != 0 {
+		t.Fatalf("stale days = %d, want 0", result.StaleDays)
+	}
+	if result.NeedsReview {
+		t.Fatalf("missing updated_at should not require stale review: %#v", result)
+	}
+	if contains(result.Suggested, "needs-review") {
+		t.Fatalf("unexpected needs-review label: %#v", result.Suggested)
+	}
+}
+
 func contains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
