@@ -1,8 +1,10 @@
 package input
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/yuhuibin/oss-maintainer-kit/internal/model"
@@ -29,7 +31,15 @@ func load(path string, dst any) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
-	if err := json.Unmarshal(data, dst); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("parse %s: unexpected trailing JSON value", path)
+		}
 		return fmt.Errorf("parse %s: %w", path, err)
 	}
 	return nil
