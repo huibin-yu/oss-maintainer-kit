@@ -123,7 +123,7 @@ func Markdown(trend Trend) string {
 		fmt.Fprintf(&b, "暂无健康度快照。\n")
 		return b.String()
 	}
-	fmt.Fprintf(&b, "项目：%s\n\n", trend.Project)
+	fmt.Fprintf(&b, "项目：%s\n\n", markdownInline(trend.Project))
 	fmt.Fprintf(&b, "快照数量：%d\n\n", len(trend.Snapshots))
 	fmt.Fprintf(&b, "首个评分：%d/100\n\n", trend.FirstScore)
 	fmt.Fprintf(&b, "最新评分：%d/100\n\n", trend.LatestScore)
@@ -153,4 +153,8 @@ func markdownCell(value string) string {
 	value = strings.ReplaceAll(value, "\n", "<br>")
 	value = strings.ReplaceAll(value, "|", "\\|")
 	return value
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }

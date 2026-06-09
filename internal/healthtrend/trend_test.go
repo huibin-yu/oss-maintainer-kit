@@ -68,6 +68,18 @@ func TestMarkdownEscapesSnapshotTableCells(t *testing.T) {
 	}
 }
 
+func TestMarkdownSanitizesProjectName(t *testing.T) {
+	doc := Markdown(Analyze([]Snapshot{
+		{Timestamp: "2026-06-01T00:00:00Z", Project: "demo\n## injected", Ref: "main", Score: 90, Passed: 9, Failed: 1},
+	}))
+	if strings.Contains(doc, "\n## injected") {
+		t.Fatalf("trend markdown contains unsanitized project:\n%s", doc)
+	}
+	if !strings.Contains(doc, "项目：demo ## injected") {
+		t.Fatalf("missing sanitized project:\n%s", doc)
+	}
+}
+
 func TestLoadReportsInvalidJSONLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bad.jsonl")
 	if err := os.WriteFile(path, []byte("{bad}\n"), 0644); err != nil {
