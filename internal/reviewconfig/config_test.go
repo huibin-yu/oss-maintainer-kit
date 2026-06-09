@@ -3,6 +3,7 @@ package reviewconfig
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -41,5 +42,24 @@ func TestValidateRejectsUnknownSeverity(t *testing.T) {
 	}}.Validate()
 	if err == nil {
 		t.Fatal("expected unknown severity error")
+	}
+}
+
+func TestLoadConfigRejectsUnknownFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rules.json")
+	if err := os.WriteFile(path, []byte(`{
+		"rules": [
+			{"id":"custom","severity":"high","contains":["danger"],"message":"custom risk","pattern":"danger"}
+		]
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+	if !strings.Contains(err.Error(), "unknown field") || !strings.Contains(err.Error(), "pattern") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

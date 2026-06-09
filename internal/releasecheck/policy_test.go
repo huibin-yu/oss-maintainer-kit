@@ -99,6 +99,21 @@ func TestLoadPolicyRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestLoadPolicyRejectsUnknownFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "release-policy.json")
+	if err := os.WriteFile(path, []byte(`{"min_health_score": 95, "minimum_health_score": 90}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadPolicy(path)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+	if !strings.Contains(err.Error(), "unknown field") || !strings.Contains(err.Error(), "minimum_health_score") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func contains(values []string, want string) bool {
 	for _, value := range values {
 		if strings.Contains(value, want) {

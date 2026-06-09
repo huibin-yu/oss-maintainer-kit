@@ -1,8 +1,10 @@
 package releasecheck
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -37,7 +39,15 @@ func LoadPolicy(path string) (Policy, error) {
 		return Policy{}, fmt.Errorf("read release policy %s: %w", path, err)
 	}
 	policy := DefaultPolicy()
-	if err := json.Unmarshal(data, &policy); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&policy); err != nil {
+		return Policy{}, fmt.Errorf("parse release policy %s: %w", path, err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return Policy{}, fmt.Errorf("parse release policy %s: unexpected trailing JSON value", path)
+		}
 		return Policy{}, fmt.Errorf("parse release policy %s: %w", path, err)
 	}
 	if err := policy.Validate(); err != nil {
