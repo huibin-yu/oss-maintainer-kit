@@ -34,7 +34,7 @@ type ReviewResult struct {
 func Prompt(req ReviewRequest) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "你是开源项目维护者的 PR review 助手。请用中文审查以下 diff。\n\n")
-	fmt.Fprintf(&b, "项目：%s\n\n", req.Project)
+	fmt.Fprintf(&b, "项目：%s\n\n", promptInline(req.Project))
 	fmt.Fprintf(&b, "要求：\n")
 	fmt.Fprintf(&b, "- 优先指出安全、稳定性、边界条件和测试缺口。\n")
 	fmt.Fprintf(&b, "- 每条建议必须可执行。\n")
@@ -43,12 +43,16 @@ func Prompt(req ReviewRequest) string {
 	if len(req.Findings) > 0 {
 		fmt.Fprintf(&b, "本地规则发现：\n")
 		for _, finding := range req.Findings {
-			fmt.Fprintf(&b, "- %s %s:%d %s：%s\n", finding.Severity, finding.File, finding.Line, finding.Rule, finding.Message)
+			fmt.Fprintf(&b, "- %s %s:%d %s：%s\n", promptInline(finding.Severity), promptInline(finding.File), finding.Line, promptInline(finding.Rule), promptInline(finding.Message))
 		}
 		fmt.Fprintln(&b)
 	}
 	fmt.Fprintf(&b, "Diff：\n```diff\n%s\n```\n", req.Diff)
 	return b.String()
+}
+
+func promptInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func (c Client) Review(ctx context.Context, req ReviewRequest) (ReviewResult, error) {

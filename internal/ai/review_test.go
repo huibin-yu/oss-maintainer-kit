@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/yuhuibin/oss-maintainer-kit/internal/diffreview"
 )
 
 func TestPromptIncludesDiffAndRules(t *testing.T) {
@@ -16,6 +18,40 @@ func TestPromptIncludesDiffAndRules(t *testing.T) {
 	})
 	if !strings.Contains(prompt, "demo") || !strings.Contains(prompt, "+const token") {
 		t.Fatalf("prompt missing content:\n%s", prompt)
+	}
+}
+
+func TestPromptSanitizesInlineFindingText(t *testing.T) {
+	prompt := Prompt(ReviewRequest{
+		Project: "demo\n## injected",
+		Diff:    "+fmt.Println(\"hello\")",
+		Findings: []diffreview.Finding{{
+			Severity: "critical\n- injected severity",
+			File:     "main.go\n- injected file",
+			Line:     3,
+			Rule:     "possible-secret\n- injected rule",
+			Message:  "secret\n- injected message",
+		}},
+	})
+
+	for _, unwanted := range []string{
+		"\n## injected",
+		"\n- injected severity",
+		"\n- injected file",
+		"\n- injected rule",
+		"\n- injected message",
+	} {
+		if strings.Contains(prompt, unwanted) {
+			t.Fatalf("prompt contains unsanitized text %q:\n%s", unwanted, prompt)
+		}
+	}
+	for _, want := range []string{
+		"项目：demo ## injected",
+		"- critical - injected severity main.go - injected file:3 possible-secret - injected rule：secret - injected message",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("missing sanitized prompt text %q:\n%s", want, prompt)
+		}
 	}
 }
 
