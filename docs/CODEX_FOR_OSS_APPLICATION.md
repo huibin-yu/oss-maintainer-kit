@@ -95,6 +95,8 @@ go run ./cmd/oss-maintainer-kit codex-plan --issues examples/issues.json --pulls
 go run ./cmd/oss-maintainer-kit application-pack --issues examples/issues.json --pulls examples/pulls.json --root . --repo-url https://github.com/<your-account>/oss-maintainer-kit --version v0.1.0 --policy examples/release-policy.json
 ```
 
+GitHub 写入和导出类命令的 `--repo` 可直接填写 `owner/name`、HTTPS 仓库 URL 或 SSH remote，便于复用 GitHub 页面地址和 `git remote get-url origin` 输出。
+
 ### 生成申请证据包
 
 ```bash

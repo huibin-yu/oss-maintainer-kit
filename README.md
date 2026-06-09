@@ -78,6 +78,8 @@ GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-triage-comment \
   --input examples/issues.json
 ```
 
+GitHub 写入和导出类命令的 `--repo` 参数支持 `owner/name`、HTTPS 仓库 URL 和 SSH remote，例如 `owner/name`、`https://github.com/owner/name.git` 或 `git@github.com:owner/name.git`。
+
 生成发布说明：
 
 ```bash
