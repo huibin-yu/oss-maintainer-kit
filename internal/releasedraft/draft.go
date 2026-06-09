@@ -36,7 +36,7 @@ func Build(input Input) Draft {
 
 func Markdown(draft Draft) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n", draft.Name)
+	fmt.Fprintf(&b, "# %s\n\n", markdownInline(draft.Name))
 	fmt.Fprint(&b, draft.Body)
 	if !strings.HasSuffix(draft.Body, "\n") {
 		fmt.Fprintln(&b)

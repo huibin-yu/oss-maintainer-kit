@@ -87,3 +87,17 @@ func TestBuildSanitizesReleaseListItems(t *testing.T) {
 		t.Fatalf("missing sanitized list item %q:\n%s", want, draft.Body)
 	}
 }
+
+func TestMarkdownSanitizesDraftTitle(t *testing.T) {
+	doc := Markdown(Draft{
+		Name: "demo v1.2.0\n## injected",
+		Body: "暂无已合并 PR。\n",
+	})
+
+	if strings.Contains(doc, "\n## injected") {
+		t.Fatalf("release markdown contains unsanitized title:\n%s", doc)
+	}
+	if !strings.Contains(doc, "# demo v1.2.0 ## injected") {
+		t.Fatalf("missing sanitized title:\n%s", doc)
+	}
+}
