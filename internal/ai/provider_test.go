@@ -45,3 +45,13 @@ func TestLoadProviderConfigRejectsInvalidRetries(t *testing.T) {
 		t.Fatal("expected invalid retries error")
 	}
 }
+
+func TestLoadProviderConfigRejectsBlankBaseURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "provider.json")
+	if err := os.WriteFile(path, []byte(`{"base_url": "   "}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadProviderConfig(path); err == nil {
+		t.Fatal("expected blank base_url error")
+	}
+}

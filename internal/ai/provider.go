@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type ProviderConfig struct {
@@ -44,13 +45,13 @@ func (c ProviderConfig) Validate() error {
 	if c.Retries < 0 {
 		return fmt.Errorf("retries must be greater than or equal to 0")
 	}
-	if c.BaseURL == "" {
+	if strings.TrimSpace(c.BaseURL) == "" {
 		return fmt.Errorf("base_url must not be empty")
 	}
-	if c.Model == "" {
+	if strings.TrimSpace(c.Model) == "" {
 		return fmt.Errorf("model must not be empty")
 	}
-	if c.APIKeyEnv == "" {
+	if strings.TrimSpace(c.APIKeyEnv) == "" {
 		return fmt.Errorf("api_key_env must not be empty")
 	}
 	return nil
