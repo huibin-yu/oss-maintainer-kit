@@ -131,3 +131,38 @@ func TestCreateCheckRunPostsPayload(t *testing.T) {
 		t.Fatalf("run = %#v", run)
 	}
 }
+
+func TestCreateReleasePostsDraftPayload(t *testing.T) {
+	var payload ReleasePayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer gh_test" {
+			t.Fatalf("authorization = %q", got)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/repos/acme/demo/releases" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":701,"html_url":"https://github.com/acme/demo/releases/tag/v1.0.0","tag_name":"v1.0.0"}`))
+	}))
+	defer server.Close()
+
+	release, err := Client{BaseURL: server.URL, Token: "gh_test"}.CreateRelease(context.Background(), "acme/demo", ReleasePayload{
+		TagName:    "v1.0.0",
+		Name:       "demo v1.0.0",
+		Body:       "## 功能\n\n- feat: add export (#1) by @alice\n",
+		Draft:      true,
+		Prerelease: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.TagName != "v1.0.0" || payload.Name != "demo v1.0.0" || !payload.Draft || !payload.Prerelease {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if release.ID != 701 || release.HTMLURL == "" || release.TagName != "v1.0.0" {
+		t.Fatalf("release = %#v", release)
+	}
+}

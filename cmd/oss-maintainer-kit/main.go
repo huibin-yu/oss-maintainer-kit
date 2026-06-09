@@ -87,6 +87,8 @@ func run(args []string) error {
 		return runTestPlan(args[1:])
 	case "github-check-run":
 		return runGitHubCheckRun(args[1:])
+	case "github-release":
+		return runGitHubRelease(args[1:])
 	case "github-comment":
 		return runGitHubComment(args[1:])
 	case "github-triage-comment":
@@ -585,6 +587,52 @@ func runGitHubCheckRun(args []string) error {
 	return nil
 }
 
+func runGitHubRelease(args []string) error {
+	fs := flag.NewFlagSet("github-release", flag.ContinueOnError)
+	repo := fs.String("repo", "", "GitHub repository in owner/name format")
+	inputPath := fs.String("input", "examples/pulls.json", "pull requests JSON file")
+	project := fs.String("project", "oss-maintainer-kit", "project name")
+	version := fs.String("version", "v0.1.0", "release version")
+	previousTag := fs.String("previous-tag", "", "previous release tag for compare range")
+	prerelease := fs.Bool("prerelease", false, "mark the GitHub release as prerelease")
+	tokenEnv := fs.String("token-env", "GITHUB_TOKEN", "environment variable that stores GitHub token")
+	baseURL := fs.String("base-url", "https://api.github.com", "GitHub API base URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	pulls, err := input.PullRequests(*inputPath)
+	if err != nil {
+		return err
+	}
+	draft := releasedraft.Build(releasedraft.Input{
+		Project:     *project,
+		Version:     *version,
+		PreviousTag: *previousTag,
+		Pulls:       pulls,
+		Prerelease:  *prerelease,
+	})
+	release, err := github.Client{
+		BaseURL: *baseURL,
+		Token:   os.Getenv(*tokenEnv),
+	}.CreateRelease(context.Background(), *repo, github.ReleasePayload{
+		TagName:    draft.TagName,
+		Name:       draft.Name,
+		Body:       draft.Body,
+		Draft:      true,
+		Prerelease: draft.Prerelease,
+	})
+	if err != nil {
+		return err
+	}
+	if release.HTMLURL != "" {
+		fmt.Println(release.HTMLURL)
+		return nil
+	}
+	fmt.Printf("created release %d\n", release.ID)
+	return nil
+}
+
 func runGitHubTriageComment(args []string) error {
 	fs := flag.NewFlagSet("github-triage-comment", flag.ContinueOnError)
 	repo := fs.String("repo", "", "GitHub repository in owner/name format")
@@ -983,6 +1031,7 @@ Usage:
   oss-maintainer-kit ai-review --diff examples/pr.diff [--provider-config examples/ai-provider.json] --prompt-only
   oss-maintainer-kit test-plan --diff examples/pr.diff [--config examples/review-rules.json] [--format markdown|json]
   oss-maintainer-kit github-check-run --repo owner/name --sha HEAD_SHA --diff examples/pr.diff [--config examples/review-rules.json]
+  oss-maintainer-kit github-release --repo owner/name --input examples/pulls.json --version v0.1.0 [--previous-tag v0.0.9]
   oss-maintainer-kit github-comment --repo owner/name --pr 123 --diff examples/pr.diff --config examples/review-rules.json
   oss-maintainer-kit github-triage-comment --repo owner/name --issue 123 --input examples/issues.json`)
 }

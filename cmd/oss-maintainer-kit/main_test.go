@@ -114,6 +114,62 @@ func TestRunGitHubCheckRunCreatesCheckRun(t *testing.T) {
 	}
 }
 
+func TestRunGitHubReleaseCreatesDraftRelease(t *testing.T) {
+	var payload struct {
+		TagName    string `json:"tag_name"`
+		Name       string `json:"name"`
+		Body       string `json:"body"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/repos/acme/demo/releases" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":701,"html_url":"https://github.com/acme/demo/releases/tag/v1.0.0","tag_name":"v1.0.0"}`))
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	writeTestFile(t, root, "pulls.json", `[
+		{"number":1,"title":"feat: add export","body":"","state":"closed","author":"alice","labels":["feature"],"merged":true,"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-01T00:00:00Z","merged_at":"2026-06-01T00:00:00Z"},
+		{"number":2,"title":"draft change","body":"","state":"open","author":"bob","labels":[],"merged":false,"created_at":"2026-06-02T00:00:00Z","updated_at":"2026-06-02T00:00:00Z"}
+	]`)
+
+	output := captureStdout(t, func() {
+		err := run([]string{
+			"github-release",
+			"--repo", "acme/demo",
+			"--input", filepath.Join(root, "pulls.json"),
+			"--project", "demo",
+			"--version", "v1.0.0",
+			"--previous-tag", "v0.9.0",
+			"--prerelease",
+			"--base-url", server.URL,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if payload.TagName != "v1.0.0" || payload.Name != "demo v1.0.0" || !payload.Draft || !payload.Prerelease {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if !strings.Contains(payload.Body, "比较范围：`v0.9.0...v1.0.0`") || !strings.Contains(payload.Body, "feat: add export (#1)") {
+		t.Fatalf("unexpected release body: %s", payload.Body)
+	}
+	if strings.Contains(payload.Body, "draft change") {
+		t.Fatalf("unmerged PR leaked into release body: %s", payload.Body)
+	}
+	if !strings.Contains(output, "https://github.com/acme/demo/releases/tag/v1.0.0") {
+		t.Fatalf("unexpected output: %s", output)
+	}
+}
+
 func TestRunGitHubTriageCommentCreatesIssueComment(t *testing.T) {
 	var createdBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

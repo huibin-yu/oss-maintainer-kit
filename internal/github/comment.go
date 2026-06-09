@@ -26,6 +26,32 @@ type CheckRun struct {
 	HTMLURL string `json:"html_url"`
 }
 
+type ReleasePayload struct {
+	TagName    string `json:"tag_name"`
+	Name       string `json:"name"`
+	Body       string `json:"body"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+}
+
+type Release struct {
+	ID      int64  `json:"id"`
+	HTMLURL string `json:"html_url"`
+	TagName string `json:"tag_name"`
+}
+
+func (c Client) CreateRelease(ctx context.Context, repo string, payload ReleasePayload) (Release, error) {
+	if strings.TrimSpace(repo) == "" {
+		return Release{}, fmt.Errorf("repo is required")
+	}
+	if strings.TrimSpace(payload.TagName) == "" {
+		return Release{}, fmt.Errorf("tag name is required")
+	}
+	var release Release
+	err := c.requestJSON(ctx, http.MethodPost, fmt.Sprintf("/repos/%s/releases", repo), nil, payload, &release)
+	return release, err
+}
+
 func (c Client) CreateCheckRun(ctx context.Context, repo string, payload checkrun.Payload) (CheckRun, error) {
 	if strings.TrimSpace(repo) == "" {
 		return CheckRun{}, fmt.Errorf("repo is required")

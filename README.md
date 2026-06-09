@@ -12,6 +12,7 @@
 - `release-notes`：从已合并 PR 生成发布说明草稿。
 - `release-summary`：从已合并 PR 生成发布摘要、风险提示和 Codex 发布摘要 prompt，也可调用 OpenAI-compatible provider。
 - `release-draft`：从已合并 PR 生成 GitHub Release 草稿正文或 Releases API JSON payload，支持 previous tag 比较范围和 prerelease 标记。
+- `github-release`：把已合并 PR 生成的 release draft 创建为 GitHub Draft Release，避免维护者手工复制发布正文。
 - `release-check`：结合 issues、PRs、仓库健康度和可配置发布策略生成发布准备检查，明确 READY/BLOCKED、阻塞项和发布前命令。
 - `report`：汇总 open issues、长期未更新问题、安全风险和带原因/证据/建议动作的优先处理项。
 - `health`：检查开源仓库是否具备 README、License、Security、CI、Issue/PR 模板、路线图，以及 CI 权限、govulncheck、Scorecard、Dependabot 覆盖、SARIF 上传和 PR 模板测试/风险提示等内容质量，并对失败项输出修复建议。
@@ -122,6 +123,17 @@ go run ./cmd/oss-maintainer-kit release-draft \
   --version v0.1.0 \
   --previous-tag v0.0.9 \
   --format json
+```
+
+创建 GitHub Draft Release：
+
+```bash
+GITHUB_TOKEN=ghp_xxx go run ./cmd/oss-maintainer-kit github-release \
+  --repo owner/name \
+  --input examples/pulls.json \
+  --project oss-maintainer-kit \
+  --version v0.1.0 \
+  --previous-tag v0.0.9
 ```
 
 检查发布准备状态：
