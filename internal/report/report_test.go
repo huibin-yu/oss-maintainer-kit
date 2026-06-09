@@ -71,3 +71,13 @@ func TestReleaseNotesGroupsMergedPullRequests(t *testing.T) {
 		t.Fatalf("release notes included unmerged PR:\n%s", doc)
 	}
 }
+
+func TestReleaseNotesExplainsWhenNoMergedPullRequests(t *testing.T) {
+	doc := ReleaseNotes("v0.2.0", []model.PullRequest{
+		{Number: 5, Title: "draft docs", Author: "alice", Merged: false},
+	})
+
+	if !strings.Contains(doc, "暂无已合并 PR。") {
+		t.Fatalf("missing empty release note message:\n%s", doc)
+	}
+}
