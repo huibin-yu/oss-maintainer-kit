@@ -79,7 +79,7 @@ func FromFindings(findings []diffreview.Finding) Log {
 			Locations: []Location{{
 				PhysicalLocation: PhysicalLocation{
 					ArtifactLocation: ArtifactLocation{URI: finding.File},
-					Region:           Region{StartLine: finding.Line},
+					Region:           Region{StartLine: positiveLine(finding.Line)},
 				},
 			}},
 		})
@@ -102,6 +102,13 @@ func FromFindings(findings []diffreview.Finding) Log {
 			Results: results,
 		}},
 	}
+}
+
+func positiveLine(line int) int {
+	if line <= 0 {
+		return 1
+	}
+	return line
 }
 
 func level(severity string) string {

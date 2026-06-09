@@ -38,6 +38,27 @@ func TestBuildCreatesSuggestionsFromDiffFindings(t *testing.T) {
 	}
 }
 
+func TestBuildIgnoresDeletedFilesInAddedLineSummary(t *testing.T) {
+	plan := Build(Input{
+		Project: "demo",
+		Diff: `diff --git a/old.go b/old.go
+deleted file mode 100644
+--- a/old.go
++++ /dev/null
+@@ -1,2 +0,0 @@
+-package old
+-func removed() {}
+`,
+	})
+
+	if len(plan.Files) != 0 {
+		t.Fatalf("deleted file should not be reported as added-line target: %#v", plan.Files)
+	}
+	if strings.Contains(plan.Prompt, "/dev/null") {
+		t.Fatalf("prompt should not include /dev/null:\n%s", plan.Prompt)
+	}
+}
+
 func TestMarkdownIncludesPromptAndCommands(t *testing.T) {
 	doc := Markdown(Plan{
 		Project: "demo",

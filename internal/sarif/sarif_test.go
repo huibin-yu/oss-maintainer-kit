@@ -25,3 +25,17 @@ func TestFromFindingsMapsSARIFFields(t *testing.T) {
 		t.Fatalf("uri = %s", got)
 	}
 }
+
+func TestFromFindingsUsesPositiveStartLine(t *testing.T) {
+	log := FromFindings([]diffreview.Finding{{
+		File:     "main.go",
+		Line:     0,
+		Severity: "low",
+		Rule:     "file-level",
+		Message:  "file level finding",
+	}})
+
+	if got := log.Runs[0].Results[0].Locations[0].PhysicalLocation.Region.StartLine; got != 1 {
+		t.Fatalf("start line = %d, want 1", got)
+	}
+}
