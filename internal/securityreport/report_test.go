@@ -137,3 +137,50 @@ func TestMarkdownEscapesDiffFindingTableCells(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkdownSanitizesInlineText(t *testing.T) {
+	report := Report{
+		Project:  "demo\n## injected",
+		Blockers: []string{"安全阻塞\n- injected blocker"},
+		IssueFindings: []model.TriageResult{{
+			Number:   7,
+			Priority: "p0\n- injected priority",
+			Title:    "security token leak\n- injected issue",
+			Reasons:  []string{"包含安全风险\n- injected reason"},
+		}},
+		FailedSecurityChecks: []health.Check{{
+			Name:           "CodeQL workflow\n- injected check",
+			Path:           ".github/workflows/codeql.yml\n- injected path",
+			Recommendation: "添加 CodeQL\n- injected recommendation",
+		}},
+		Recommendations: []string{"阻塞合并\n- injected action"},
+	}
+
+	md := Markdown(report)
+	for _, unwanted := range []string{
+		"\n## injected",
+		"\n- injected blocker",
+		"\n- injected priority",
+		"\n- injected issue",
+		"\n- injected reason",
+		"\n- injected check",
+		"\n- injected path",
+		"\n- injected recommendation",
+		"\n- injected action",
+	} {
+		if strings.Contains(md, unwanted) {
+			t.Fatalf("security report contains unsanitized text %q:\n%s", unwanted, md)
+		}
+	}
+	for _, want := range []string{
+		"# demo ## injected 安全报告",
+		"- 安全阻塞 - injected blocker",
+		"#7 `p0 - injected priority` security token leak - injected issue：包含安全风险 - injected reason",
+		"- **CodeQL workflow - injected check**（`.github/workflows/codeql.yml - injected path`）：添加 CodeQL - injected recommendation",
+		"- 阻塞合并 - injected action",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, md)
+		}
+	}
+}

@@ -68,7 +68,7 @@ func Build(input Input) Report {
 
 func Markdown(report Report) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s 安全报告\n\n", report.Project)
+	fmt.Fprintf(&b, "# %s 安全报告\n\n", markdownInline(report.Project))
 	fmt.Fprintf(&b, "## 安全摘要\n\n")
 	fmt.Fprintf(&b, "| 指标 | 数量 |\n| --- | ---: |\n")
 	fmt.Fprintf(&b, "| 安全门禁阻塞 | %t |\n", report.Blocked)
@@ -82,7 +82,7 @@ func Markdown(report Report) string {
 		fmt.Fprintf(&b, "未发现阻塞安全门禁的风险。\n\n")
 	} else {
 		for _, blocker := range report.Blockers {
-			fmt.Fprintf(&b, "- %s\n", blocker)
+			fmt.Fprintf(&b, "- %s\n", markdownInline(blocker))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -92,7 +92,7 @@ func Markdown(report Report) string {
 		fmt.Fprintf(&b, "未发现 open 安全 issue。\n\n")
 	} else {
 		for _, item := range report.IssueFindings {
-			fmt.Fprintf(&b, "- #%d `%s` %s：%s\n", item.Number, item.Priority, item.Title, strings.Join(item.Reasons, "；"))
+			fmt.Fprintf(&b, "- #%d `%s` %s：%s\n", item.Number, markdownInline(item.Priority), markdownInline(item.Title), inlineList(item.Reasons, "；"))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -120,7 +120,7 @@ func Markdown(report Report) string {
 		fmt.Fprintf(&b, "未发现安全治理检查失败项。\n\n")
 	} else {
 		for _, check := range report.FailedSecurityChecks {
-			fmt.Fprintf(&b, "- **%s**（`%s`）：%s\n", check.Name, check.Path, check.Recommendation)
+			fmt.Fprintf(&b, "- **%s**（`%s`）：%s\n", markdownInline(check.Name), markdownInline(check.Path), markdownInline(check.Recommendation))
 		}
 		fmt.Fprintln(&b)
 	}
@@ -131,9 +131,23 @@ func Markdown(report Report) string {
 		return b.String()
 	}
 	for _, recommendation := range report.Recommendations {
-		fmt.Fprintf(&b, "- %s\n", recommendation)
+		fmt.Fprintf(&b, "- %s\n", markdownInline(recommendation))
 	}
 	return b.String()
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func inlineList(values []string, sep string) string {
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		if item := markdownInline(value); item != "" {
+			items = append(items, item)
+		}
+	}
+	return strings.Join(items, sep)
 }
 
 func markdownCell(value string) string {
