@@ -112,3 +112,28 @@ func TestMarkdownIncludesActionableSections(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkdownEscapesDiffFindingTableCells(t *testing.T) {
+	report := Report{
+		Project: "demo",
+		DiffFindings: []diffreview.Finding{
+			{
+				Severity: "high",
+				File:     "internal/a|b.go",
+				Line:     10,
+				Rule:     "custom|rule",
+				Message:  "first line\nsecond | line",
+			},
+		},
+	}
+
+	md := Markdown(report)
+	if strings.Contains(md, "internal/a|b.go") || strings.Contains(md, "custom|rule") || strings.Contains(md, "first line\nsecond") {
+		t.Fatalf("markdown did not escape table cells:\n%s", md)
+	}
+	for _, want := range []string{"internal/a\\|b.go", "custom\\|rule", "first line<br>second \\| line"} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("missing escaped value %q:\n%s", want, md)
+		}
+	}
+}

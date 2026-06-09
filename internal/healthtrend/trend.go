@@ -136,7 +136,21 @@ func Markdown(trend Trend) string {
 		if ref == "" {
 			ref = "unknown"
 		}
-		fmt.Fprintf(&b, "| %s | `%s` | %d | %d | %d |\n", snapshot.Timestamp, ref, snapshot.Score, snapshot.Passed, snapshot.Failed)
+		fmt.Fprintf(&b, "| %s | `%s` | %d | %d | %d |\n",
+			markdownCell(snapshot.Timestamp),
+			markdownCell(ref),
+			snapshot.Score,
+			snapshot.Passed,
+			snapshot.Failed,
+		)
 	}
 	return b.String()
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	return value
 }

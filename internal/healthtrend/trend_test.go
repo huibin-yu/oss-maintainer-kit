@@ -54,6 +54,20 @@ func TestAppendLoadAndMarkdownTrend(t *testing.T) {
 	}
 }
 
+func TestMarkdownEscapesSnapshotTableCells(t *testing.T) {
+	doc := Markdown(Analyze([]Snapshot{
+		{Timestamp: "2026-06-01T00:00:00Z", Project: "demo", Ref: "feature|x\nnext", Score: 90, Passed: 9, Failed: 1},
+	}))
+	if strings.Contains(doc, "feature|x") || strings.Contains(doc, "feature|x\nnext") {
+		t.Fatalf("markdown did not escape table cells:\n%s", doc)
+	}
+	for _, want := range []string{"feature\\|x<br>next"} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing escaped value %q:\n%s", want, doc)
+		}
+	}
+}
+
 func TestLoadReportsInvalidJSONLine(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bad.jsonl")
 	if err := os.WriteFile(path, []byte("{bad}\n"), 0644); err != nil {

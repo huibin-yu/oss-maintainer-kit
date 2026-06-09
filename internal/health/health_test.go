@@ -126,6 +126,23 @@ func TestMarkdownIncludesFailedCheckRecommendations(t *testing.T) {
 	}
 }
 
+func TestMarkdownEscapesTableCells(t *testing.T) {
+	doc := Markdown(Summary{
+		Score: 50,
+		Checks: []Check{
+			{Name: "CI | build", Passed: false, Path: ".github/workflows/ci|build.yml", Message: "first line\nsecond | line", Recommendation: "fix"},
+		},
+	})
+	if strings.Contains(doc, "CI | build") || strings.Contains(doc, "ci|build.yml") || strings.Contains(doc, "first line\nsecond") {
+		t.Fatalf("markdown did not escape table cells:\n%s", doc)
+	}
+	for _, want := range []string{"CI \\| build", "ci\\|build.yml", "first line<br>second \\| line"} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing escaped value %q:\n%s", want, doc)
+		}
+	}
+}
+
 func writeHealthFile(t *testing.T, root, file, body string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(file))

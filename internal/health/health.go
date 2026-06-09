@@ -91,7 +91,12 @@ func Markdown(summary Summary) string {
 		if check.Passed {
 			status = "PASS"
 		}
-		fmt.Fprintf(&b, "| %s | %s | `%s` | %s |\n", check.Name, status, check.Path, check.Message)
+		fmt.Fprintf(&b, "| %s | %s | `%s` | %s |\n",
+			markdownCell(check.Name),
+			status,
+			markdownCell(check.Path),
+			markdownCell(check.Message),
+		)
 	}
 	var failed []Check
 	for _, check := range summary.Checks {
@@ -102,10 +107,22 @@ func Markdown(summary Summary) string {
 	if len(failed) > 0 {
 		fmt.Fprintf(&b, "\n## 失败项修复建议\n\n")
 		for _, check := range failed {
-			fmt.Fprintf(&b, "- **%s**（`%s`）：%s\n", check.Name, check.Path, check.Recommendation)
+			fmt.Fprintf(&b, "- **%s**（`%s`）：%s\n",
+				markdownCell(check.Name),
+				markdownCell(check.Path),
+				markdownCell(check.Recommendation),
+			)
 		}
 	}
 	return b.String()
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	return value
 }
 
 func fileCheck(root, name, path, message, recommendation string) Check {
