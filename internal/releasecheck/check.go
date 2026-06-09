@@ -70,7 +70,7 @@ func Markdown(result Result) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s %s 发布准备检查\n\n", result.Project, result.Version)
+	fmt.Fprintf(&b, "# %s %s 发布准备检查\n\n", markdownInline(result.Project), markdownInline(result.Version))
 	fmt.Fprintf(&b, "发布状态：**%s**\n\n", status)
 	fmt.Fprintf(&b, "## 维护指标\n\n")
 	fmt.Fprintf(&b, "- Open Issues：%d\n", result.Summary.OpenIssues)
@@ -93,11 +93,11 @@ func Markdown(result Result) string {
 		fmt.Fprintf(&b, "暂无阻塞项。\n")
 	} else {
 		for _, blocker := range result.Blockers {
-			fmt.Fprintf(&b, "- %s\n", blocker)
+			fmt.Fprintf(&b, "- %s\n", markdownInline(blocker))
 		}
 		for _, check := range result.Health.Checks {
 			if !check.Passed {
-				fmt.Fprintf(&b, "- %s（`%s`）：%s\n", check.Name, check.Path, check.Message)
+				fmt.Fprintf(&b, "- %s（`%s`）：%s\n", markdownInline(check.Name), markdownInline(check.Path), markdownInline(check.Message))
 			}
 		}
 	}
@@ -107,14 +107,14 @@ func Markdown(result Result) string {
 		fmt.Fprintf(&b, "暂无额外风险提示。\n")
 	} else {
 		for _, warning := range result.Warnings {
-			fmt.Fprintf(&b, "- %s\n", warning)
+			fmt.Fprintf(&b, "- %s\n", markdownInline(warning))
 		}
 	}
 
 	fmt.Fprintf(&b, "\n## 发布前命令\n\n")
 	fmt.Fprintf(&b, "```bash\n")
 	for _, command := range result.Commands {
-		fmt.Fprintf(&b, "%s\n", command)
+		fmt.Fprintf(&b, "%s\n", markdownInline(command))
 	}
 	fmt.Fprintf(&b, "```\n")
 	return b.String()
@@ -124,4 +124,8 @@ func commands(policy Policy, version string) []string {
 	values := append([]string{}, policy.RequiredCommands...)
 	values = append(values, fmt.Sprintf("rtk go run ./cmd/oss-maintainer-kit release-notes --input examples/pulls.json --version %s", version))
 	return values
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }

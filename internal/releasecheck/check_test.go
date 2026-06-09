@@ -71,3 +71,50 @@ func TestBuildMarksReleaseReadyWhenNoBlockers(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkdownSanitizesInlineText(t *testing.T) {
+	result := Result{
+		Project:  "demo\n## injected",
+		Version:  "v1.0.0\n- injected version",
+		Ready:    false,
+		Policy:   DefaultPolicy(),
+		Blockers: []string{"安全风险\n- injected blocker"},
+		Warnings: []string{"需要复查\n- injected warning"},
+		Commands: []string{"rtk go test ./...\nrm -rf /tmp/example"},
+		Health: health.Summary{
+			Checks: []health.Check{{
+				Name:    "PR template\n- injected check",
+				Path:    ".github/pull_request_template.md\n- injected path",
+				Message: "缺少测试\n- injected message",
+				Passed:  false,
+			}},
+		},
+	}
+
+	doc := Markdown(result)
+	for _, unwanted := range []string{
+		"\n## injected",
+		"\n- injected version",
+		"\n- injected blocker",
+		"\n- injected warning",
+		"\n- injected check",
+		"\n- injected path",
+		"\n- injected message",
+		"\nrm -rf /tmp/example",
+	} {
+		if strings.Contains(doc, unwanted) {
+			t.Fatalf("release check contains unsanitized text %q:\n%s", unwanted, doc)
+		}
+	}
+	for _, want := range []string{
+		"# demo ## injected v1.0.0 - injected version 发布准备检查",
+		"- 安全风险 - injected blocker",
+		"- PR template - injected check（`.github/pull_request_template.md - injected path`）：缺少测试 - injected message",
+		"- 需要复查 - injected warning",
+		"rtk go test ./... rm -rf /tmp/example",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}
