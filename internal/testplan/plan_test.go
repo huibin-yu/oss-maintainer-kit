@@ -77,3 +77,17 @@ func TestMarkdownIncludesPromptAndCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkdownEscapesFileTableCells(t *testing.T) {
+	doc := Markdown(Plan{
+		Project: "demo",
+		Files:   []FileChange{{Path: "internal/a|b.go\nnext", AddedLines: 2}},
+		Prompt:  "请生成测试计划",
+	})
+	if strings.Contains(doc, "internal/a|b.go") || strings.Contains(doc, "internal/a|b.go\nnext") {
+		t.Fatalf("markdown did not escape file table cells:\n%s", doc)
+	}
+	if !strings.Contains(doc, "internal/a\\|b.go<br>next") {
+		t.Fatalf("missing escaped file path:\n%s", doc)
+	}
+}

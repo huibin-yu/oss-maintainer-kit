@@ -54,7 +54,7 @@ func Markdown(plan Plan) string {
 	} else {
 		fmt.Fprintf(&b, "| 文件 | 新增行数 |\n| --- | ---: |\n")
 		for _, file := range plan.Files {
-			fmt.Fprintf(&b, "| `%s` | %d |\n", file.Path, file.AddedLines)
+			fmt.Fprintf(&b, "| `%s` | %d |\n", markdownCell(file.Path), file.AddedLines)
 		}
 		fmt.Fprintln(&b)
 	}
@@ -70,6 +70,14 @@ func Markdown(plan Plan) string {
 	fmt.Fprintf(&b, "\n## Codex Prompt\n\n")
 	fmt.Fprintf(&b, "```text\n%s\n```\n", plan.Prompt)
 	return b.String()
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "|", "\\|")
+	return value
 }
 
 func parseFiles(diff string) []FileChange {
