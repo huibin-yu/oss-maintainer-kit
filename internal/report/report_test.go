@@ -24,6 +24,21 @@ func TestMaintainerReportCountsRiskItems(t *testing.T) {
 	}
 }
 
+func TestMaintainerReportTreatsClosedStateCaseInsensitively(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	summary := Maintainer([]model.Issue{
+		{Number: 1, Title: "closed upstream", State: "CLOSED", UpdatedAt: now},
+		{Number: 2, Title: "active bug", State: "OPEN", UpdatedAt: now},
+	}, nil, triage.RuleSet{Now: now})
+
+	if summary.OpenIssues != 1 {
+		t.Fatalf("open issues = %d, want 1", summary.OpenIssues)
+	}
+	if len(summary.TopSuggestedWork) != 1 || summary.TopSuggestedWork[0].Number != 2 {
+		t.Fatalf("unexpected suggested work: %#v", summary.TopSuggestedWork)
+	}
+}
+
 func TestMarkdownIncludesPriorityExplanation(t *testing.T) {
 	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	summary := Maintainer([]model.Issue{

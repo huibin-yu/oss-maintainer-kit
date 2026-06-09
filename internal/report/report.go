@@ -14,7 +14,7 @@ func Maintainer(issues []model.Issue, pulls []model.PullRequest, rules triage.Ru
 	report := model.MaintainerReport{TopSuggestedWork: top(results, 5)}
 
 	for _, issue := range issues {
-		if issue.State != "closed" {
+		if !strings.EqualFold(issue.State, "closed") {
 			report.OpenIssues++
 		}
 	}

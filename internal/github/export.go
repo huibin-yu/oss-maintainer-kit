@@ -144,6 +144,9 @@ func (c Client) fetchAll(ctx context.Context, repo, resource string, options Exp
 				break
 			}
 			for _, item := range batch {
+				if item.PullRequest.URL != "" {
+					continue
+				}
 				if matchesSince(item.UpdatedAt, options.Since) {
 					all = append(all, item)
 				}

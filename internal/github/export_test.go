@@ -103,6 +103,42 @@ func TestIssuesWithOptionsPaginatesAndFilters(t *testing.T) {
 	}
 }
 
+func TestIssuesWithOptionsLimitCountsOnlyIssues(t *testing.T) {
+	var pages []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pages = append(pages, r.URL.Query().Get("page"))
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("page") {
+		case "1":
+			_, _ = w.Write([]byte(`[
+				{"number":1,"title":"pr","state":"open","user":{"login":"alice"},"labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-02T00:00:00Z","pull_request":{"url":"https://api.github.com/repos/acme/demo/pulls/1"}}
+			]`))
+		case "2":
+			_, _ = w.Write([]byte(`[
+				{"number":2,"title":"real issue","body":"bug","state":"open","user":{"login":"bob"},"labels":[],"created_at":"2026-06-01T00:00:00Z","updated_at":"2026-06-02T00:00:00Z"}
+			]`))
+		default:
+			_, _ = w.Write([]byte(`[]`))
+		}
+	}))
+	defer server.Close()
+
+	issues, err := Client{BaseURL: server.URL}.IssuesWithOptions(context.Background(), "acme/demo", ExportOptions{
+		Limit:   1,
+		State:   "all",
+		PerPage: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 || issues[0].Number != 2 {
+		t.Fatalf("unexpected issues: %#v", issues)
+	}
+	if len(pages) != 2 || pages[0] != "1" || pages[1] != "2" {
+		t.Fatalf("pages = %#v", pages)
+	}
+}
+
 func TestPullRequestsWithOptionsFiltersSinceClientSide(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("since") != "" {
