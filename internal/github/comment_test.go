@@ -295,3 +295,24 @@ func TestRequestJSONReturnsActionableGitHubErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestJSONWrapsSuccessfulResponseDecodeErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/repos/acme/demo/issues/1/comments" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>not json</html>"))
+	}))
+	defer server.Close()
+
+	_, err := Client{BaseURL: server.URL}.IssueComments(context.Background(), "acme/demo", 1)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+	for _, want := range []string{"decode github response", "GET", "/repos/acme/demo/issues/1/comments"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q in error: %v", want, err)
+		}
+	}
+}

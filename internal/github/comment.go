@@ -177,7 +177,10 @@ func (c Client) requestJSON(ctx context.Context, method, path string, query map[
 	if dst == nil {
 		return nil
 	}
-	return json.NewDecoder(resp.Body).Decode(dst)
+	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+		return fmt.Errorf("decode github response %s %s: %w", method, path, err)
+	}
+	return nil
 }
 
 type commentRequest struct {
