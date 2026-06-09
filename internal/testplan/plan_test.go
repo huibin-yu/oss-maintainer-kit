@@ -91,3 +91,77 @@ func TestMarkdownEscapesFileTableCells(t *testing.T) {
 		t.Fatalf("missing escaped file path:\n%s", doc)
 	}
 }
+
+func TestMarkdownSanitizesInlineText(t *testing.T) {
+	doc := Markdown(Plan{
+		Project: "demo\n## injected",
+		Suggestions: []Suggestion{{
+			Area:      "基础回归\n- injected area",
+			Priority:  "p1\n- injected priority",
+			Rationale: "运行测试\n- injected rationale",
+			Command:   "rtk go test ./...\nrm -rf /tmp/example",
+		}},
+		Prompt: "请生成测试计划",
+	})
+
+	for _, unwanted := range []string{
+		"\n## injected",
+		"\n- injected area",
+		"\n- injected priority",
+		"\n- injected rationale",
+		"\nrm -rf /tmp/example",
+	} {
+		if strings.Contains(doc, unwanted) {
+			t.Fatalf("test plan contains unsanitized text %q:\n%s", unwanted, doc)
+		}
+	}
+	for _, want := range []string{
+		"# demo ## injected 测试建议",
+		"- `p1 - injected priority` **基础回归 - injected area**：运行测试 - injected rationale",
+		"命令：`rtk go test ./... rm -rf /tmp/example`",
+	} {
+		if !strings.Contains(doc, want) {
+			t.Fatalf("missing sanitized text %q:\n%s", want, doc)
+		}
+	}
+}
+
+func TestBuildSanitizesPromptInlineText(t *testing.T) {
+	plan := Build(Input{
+		Project: "demo\n## injected",
+		Diff: `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1 +1,2 @@
+ package main
++const token = "abc"
+`,
+		Findings: []diffreview.Finding{{
+			Severity: "critical\n- injected severity",
+			File:     "main.go\n- injected file",
+			Line:     2,
+			Rule:     "possible-secret\n- injected rule",
+			Message:  "secret\n- injected message",
+		}},
+	})
+
+	for _, unwanted := range []string{
+		"\n## injected",
+		"\n- injected severity",
+		"\n- injected file",
+		"\n- injected rule",
+		"\n- injected message",
+	} {
+		if strings.Contains(plan.Prompt, unwanted) {
+			t.Fatalf("prompt contains unsanitized text %q:\n%s", unwanted, plan.Prompt)
+		}
+	}
+	for _, want := range []string{
+		"请为开源项目 demo ## injected 生成可执行测试计划。",
+		"- critical - injected severity main.go - injected file:2 possible-secret - injected rule：secret - injected message",
+	} {
+		if !strings.Contains(plan.Prompt, want) {
+			t.Fatalf("missing sanitized prompt text %q:\n%s", want, plan.Prompt)
+		}
+	}
+}

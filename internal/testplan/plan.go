@@ -47,7 +47,7 @@ func Build(input Input) Plan {
 
 func Markdown(plan Plan) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s 测试建议\n\n", plan.Project)
+	fmt.Fprintf(&b, "# %s 测试建议\n\n", markdownInline(plan.Project))
 	fmt.Fprintf(&b, "## 变更文件\n\n")
 	if len(plan.Files) == 0 {
 		fmt.Fprintf(&b, "未识别到变更文件。\n\n")
@@ -61,9 +61,9 @@ func Markdown(plan Plan) string {
 
 	fmt.Fprintf(&b, "## 测试建议\n\n")
 	for _, suggestion := range plan.Suggestions {
-		fmt.Fprintf(&b, "- `%s` **%s**：%s\n", suggestion.Priority, suggestion.Area, suggestion.Rationale)
+		fmt.Fprintf(&b, "- `%s` **%s**：%s\n", markdownInline(suggestion.Priority), markdownInline(suggestion.Area), markdownInline(suggestion.Rationale))
 		if suggestion.Command != "" {
-			fmt.Fprintf(&b, "  - 命令：`%s`\n", suggestion.Command)
+			fmt.Fprintf(&b, "  - 命令：`%s`\n", markdownInline(suggestion.Command))
 		}
 	}
 
@@ -78,6 +78,10 @@ func markdownCell(value string) string {
 	value = strings.ReplaceAll(value, "\n", "<br>")
 	value = strings.ReplaceAll(value, "|", "\\|")
 	return value
+}
+
+func markdownInline(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func parseFiles(diff string) []FileChange {
@@ -147,15 +151,15 @@ func suggestionFor(finding diffreview.Finding) Suggestion {
 
 func prompt(plan Plan, findings []diffreview.Finding) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "请为开源项目 %s 生成可执行测试计划。\n\n", plan.Project)
+	fmt.Fprintf(&b, "请为开源项目 %s 生成可执行测试计划。\n\n", markdownInline(plan.Project))
 	fmt.Fprintf(&b, "变更文件：\n")
 	for _, file := range plan.Files {
-		fmt.Fprintf(&b, "- %s（新增 %d 行）\n", file.Path, file.AddedLines)
+		fmt.Fprintf(&b, "- %s（新增 %d 行）\n", markdownInline(file.Path), file.AddedLines)
 	}
 	if len(findings) > 0 {
 		fmt.Fprintf(&b, "\n本地风险发现：\n")
 		for _, finding := range findings {
-			fmt.Fprintf(&b, "- %s %s:%d %s：%s\n", finding.Severity, finding.File, finding.Line, finding.Rule, finding.Message)
+			fmt.Fprintf(&b, "- %s %s:%d %s：%s\n", markdownInline(finding.Severity), markdownInline(finding.File), finding.Line, markdownInline(finding.Rule), markdownInline(finding.Message))
 		}
 	}
 	fmt.Fprintf(&b, "\n请输出：\n")
