@@ -547,6 +547,9 @@ func runGitHubComment(args []string) error {
 	if *number <= 0 {
 		return fmt.Errorf("pull request number is required")
 	}
+	if err := validateBaseURL(*baseURL); err != nil {
+		return err
+	}
 	token, err := githubTokenFromEnv(*tokenEnv)
 	if err != nil {
 		return err
@@ -597,6 +600,9 @@ func runGitHubCheckRun(args []string) error {
 	if strings.TrimSpace(*sha) == "" {
 		return fmt.Errorf("head sha is required")
 	}
+	if err := validateBaseURL(*baseURL); err != nil {
+		return err
+	}
 	token, err := githubTokenFromEnv(*tokenEnv)
 	if err != nil {
 		return err
@@ -646,6 +652,9 @@ func runGitHubRelease(args []string) error {
 		return err
 	}
 	if err := validateRepo(*repo); err != nil {
+		return err
+	}
+	if err := validateBaseURL(*baseURL); err != nil {
 		return err
 	}
 	var token string
@@ -711,6 +720,9 @@ func runGitHubTriageComment(args []string) error {
 	if *number <= 0 {
 		return fmt.Errorf("issue or pull request number is required")
 	}
+	if err := validateBaseURL(*baseURL); err != nil {
+		return err
+	}
 	token, err := githubTokenFromEnv(*tokenEnv)
 	if err != nil {
 		return err
@@ -763,6 +775,13 @@ func validateRepo(repo string) error {
 	parts := strings.Split(repo, "/")
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return fmt.Errorf("repo is required, expected owner/name")
+	}
+	return nil
+}
+
+func validateBaseURL(baseURL string) error {
+	if strings.TrimSpace(baseURL) == "" {
+		return fmt.Errorf("base-url must not be empty")
 	}
 	return nil
 }
@@ -1092,6 +1111,9 @@ func runGitHubExport(args []string) error {
 		return err
 	}
 	if err := validateGitHubExportOptions(*kind, *api, *state, *limit, *perPage); err != nil {
+		return err
+	}
+	if err := validateBaseURL(*baseURL); err != nil {
 		return err
 	}
 

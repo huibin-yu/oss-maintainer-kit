@@ -470,6 +470,54 @@ func TestRunGitHubWriteCommandsValidateTokenBeforeReadingInput(t *testing.T) {
 	}
 }
 
+func TestRunGitHubCommandsRejectBlankBaseURLBeforeTokenOrInput(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "github-comment",
+			args: []string{"github-comment", "--repo", "acme/demo", "--pr", "9", "--diff", missingPath},
+		},
+		{
+			name: "github-check-run",
+			args: []string{"github-check-run", "--repo", "acme/demo", "--sha", "abc123", "--diff", missingPath},
+		},
+		{
+			name: "github-release",
+			args: []string{"github-release", "--repo", "acme/demo", "--input", missingPath},
+		},
+		{
+			name: "github-triage-comment",
+			args: []string{"github-triage-comment", "--repo", "acme/demo", "--issue", "42", "--input", missingPath},
+		},
+		{
+			name: "github-export-rest",
+			args: []string{"github-export", "--repo", "acme/demo", "--kind", "issues", "--limit", "1"},
+		},
+		{
+			name: "github-export-graphql",
+			args: []string{"github-export", "--repo", "acme/demo", "--kind", "issues", "--api", "graphql", "--limit", "1", "--token-env", "MISSING_GITHUB_TOKEN_BEFORE_BASE_URL_TEST"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append(tc.args, "--base-url", "   ")
+			err := run(args)
+			if err == nil {
+				t.Fatal("expected blank base-url error")
+			}
+			if !strings.Contains(err.Error(), "base-url must not be empty") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if strings.Contains(err.Error(), "missing.json") || strings.Contains(err.Error(), "MISSING_GITHUB_TOKEN_BEFORE_BASE_URL_TEST") {
+				t.Fatalf("validated base-url too late: %v", err)
+			}
+		})
+	}
+}
+
 func TestRunTriageCommentOutputsMarkdown(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "issues.json", `[
